@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "mysql": "^2.18.1",
     "puppeteer": "^1.13.0",
     "react-devtools": "^3.6.1"
   }
