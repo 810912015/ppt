@@ -4,8 +4,6 @@ function log(){
     console.log(new Date().toLocaleString(),arguments);
 }
 
- 
-
 async function start(hl){
     //console.log(hl,hl||false)
     const browser=await pt.launch({headless:(hl||false)});

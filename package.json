@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "mysql": "^2.18.1",
+    "node-html-parser": "^1.2.16",
     "puppeteer": "^1.13.0",
     "react-devtools": "^3.6.1"
   }
