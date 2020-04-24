@@ -2,13 +2,14 @@ const {log,start}=require("./pbp")
 const parser=require("node-html-parser")
 const gtrans =require("./gtrans")
 
-const url="https://betterdev.link/issues/145";
+const url="https://betterdev.link";
 
 async function trans(tor,str){
     log("begin trans")
     let sa=str.split('\n')
     let code=false;
-    let r="";    
+    let r="";
+    let cache={};
     for(let i=0;i<sa.length;i++){        
         let t=sa[i];        
         if(!t){
@@ -25,8 +26,13 @@ async function trans(tor,str){
                 r+=t; 
                 log("trans step ",i,sa.length,code,isCode,t)               
             }else{
-                let tr=await gtrans.translate(tor.page,t);
-               
+                let tr;
+                if(t in cache){
+                    tr=cache[t]
+                }else {
+                    tr = await gtrans.translate(tor.page, t);
+                    cache[t]=tr;
+                }
                 log("trans step ",i,sa.length,code,isCode,t,tr)
                 r+=tr;
             }
@@ -75,8 +81,8 @@ async function trans(tor,str){
     log("links done")
     let r=links;
     let fs=require('fs')
-    let fn="better-dev-20200423-8.txt"
-    for(let i=0;i<r.length;i++){
+    let fn="better-dev-20200423-9.txt"
+    for(let i=5;i<r.length;i++){
        
         let t=r[i];
         let pt=await bp.browser.newPage();
@@ -98,7 +104,8 @@ async function trans(tor,str){
 
         t.html=html;
         t.text=root.structuredText;
-        log("begin trans",i,r.length)
+        log("begin trans",i,r.length);
+        t.cname=await gtrans.translate(gt.page, t.n);
         t.ctext=await trans(gt,t.text);
         log("end trans",i,r.length)
         await gt.browser.close();

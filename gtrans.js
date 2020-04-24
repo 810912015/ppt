@@ -12,7 +12,7 @@ async function translate(page,str){
        document.querySelector(".tlid-translation").innerText
     )
     if(!!r&&r.indexOf("...")<0) return r;
-    for(let i=0;i<5;i++){
+    for(let i=0;i<20;i++){
         await page.waitFor(td);
         const r1=await page.evaluate(()=>{
             document.querySelector(".tlid-translation").innerText
