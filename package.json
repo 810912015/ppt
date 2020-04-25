@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "htmlparser2": "^4.1.0",
     "mysql": "^2.18.1",
     "node-html-parser": "^1.2.16",
     "puppeteer": "^1.13.0",

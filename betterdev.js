@@ -1,36 +1,147 @@
 const {log,start}=require("./pbp")
 const parser=require("node-html-parser")
 const gtrans =require("./gtrans")
+const htmlparser=require("htmlparser2")
+const simplifier=require("./hp2t")
 
 const url="https://betterdev.link";
 
-async function trans(tor,str){
-    log("begin trans")
-    let sa=str.split('\n')
+const htmlparser2 = require("htmlparser2");
+const tags={
+    html:"",
+    cfg:{
+        ignore: {
+            noscript: true,
+            script:true,
+            form:true,
+            input:true,
+            label:true,
+            button:true,
+            style:true,
+            footer:true,
+            link:true
+        },
+        untouch:{
+            pre:true,
+            code:true,
+            svg:true
+        },
+        attr:{
+            a:["href"],
+            img:["src","alt"]
+        },
+
+    },
+    include:true,
+    untouch:false
+};
+function isIgnore(name) {
+    return name in tags.cfg.ignore;
+}
+function isUntouch(name) {
+    return name in tags.cfg.untouch;
+}
+function writeOpen(name,attrs) {
+    if(!(name in tags.cfg.attr)&&!isUntouch(name)&&!tags.untouch) return;
+    tags.html+="<";
+    tags.html+=name;
+    if(name in tags.cfg.attr){
+        let ta=tags.cfg.attr[name];
+        ta.forEach(a=>{
+            if(a in attrs){
+                tags.html+=" "+a+"='"+attrs[a]+"'"
+            }
+        })
+    }else if(tags.untouch){
+        if(name!="pre"&&name!="code"){
+            for(a in attrs){
+                tags.html+=" "+a+"='"+attrs[a]+"'"
+            }
+        }
+
+    }
+    tags.html+=">"
+}
+
+async function simply(str,tf) {
+    tags.html="";
+    const parser = new htmlparser2.Parser(
+        {
+            onopentag(name, attribs) {
+                if(isIgnore(name)){
+                    tags.include=false
+                    return;
+                }
+                if(isUntouch(name)){
+                    tags.untouch=true;
+                }
+                writeOpen(name,attribs)
+            },
+            async ontext(text) {
+                if(tags.include) {
+                    let tr;
+                    if(tf){
+                        tr=await tf(text);
+                    }else{
+                        tr=text;
+                    }
+                    tags.html += text;
+                }
+            },
+            onclosetag(name) {
+                if(isIgnore(name)){
+                    tags.include=true
+                    return;
+                }
+                if(isUntouch(name)){
+                    tags.untouch=false;
+                }
+                if(tags.untouch||(name in tags.cfg.attr)||name in tags.cfg.untouch){
+                    tags.html+="</"+name+">";
+                }else{
+                    if(!tags.html.endsWith("\n")){
+                        tags.html+="\n";
+                    }
+                }
+            }
+        },
+        { decodeEntities: true }
+    );
+    parser.write(str);
+    parser.end();
+    let r=tags.html;
+    return r;
+}
+
+async function transSingle(page,str){
+    return await gtrans.translate(page, str);
+}
+
+async function transArray(page,sa){
     let code=false;
     let r="";
     let cache={};
-    for(let i=0;i<sa.length;i++){        
-        let t=sa[i];        
-        if(!t){
-            log("trans step ",i,sa.length,t)
+    for(let i=0;i<sa.length;i++){
+        let t=sa[i];
+        if(!t||t.indexOf(">")>-1||t.indexOf("<")>-1){
+            log("trans step:empty or element ",i,sa.length,t)
             r+="\n"
             continue
         }
         let isCode=t.indexOf("<code>")>-1||t.indexOf("</code>")>-1||
-        t.indexOf("<pre>")>-1||t.indexOf("</pre>")>-1||t.indexOf("<ol>")>-1||t.indexOf("</ol>")>-1
+            t.indexOf("<pre>")>-1||t.indexOf("</pre>")>-1||t.indexOf("<ol>")>-1||t.indexOf("</ol>")>-1
 
         if(!code){
             if(isCode){
                 code=true;
-                r+=t; 
-                log("trans step ",i,sa.length,code,isCode,t)               
+                r+=t;
+                log("trans step ",i,sa.length,code,isCode,t)
             }else{
                 let tr;
                 if(t in cache){
                     tr=cache[t]
                 }else {
-                    tr = await gtrans.translate(tor.page, t);
+                    tr = await transSingle(page,t);
                     cache[t]=tr;
                 }
                 log("trans step ",i,sa.length,code,isCode,t,tr)
@@ -45,12 +156,18 @@ async function trans(tor,str){
                 log("trans step ",i,sa.length,code,isCode,t)
                 r+=t;
             }
-           
+
         }
         r+="\n"
     }
     log("translated",r);
     return r;
+}
+
+async function transByLine(page,str){
+    log("begin trans")
+    let sa=str.split('\n')
+    return await transArray(page,sa);
 }
 
 (async()=>{
@@ -81,19 +198,15 @@ async function trans(tor,str){
     log("links done")
     let r=links;
     let fs=require('fs')
-    let fn="better-dev-20200423-9.txt"
-    for(let i=5;i<r.length;i++){
-       
-        let t=r[i];
-        let pt=await bp.browser.newPage();
-        log("start page",i,r.length,r[i].n)
-        try{
-        await pt.goto(t.l,{timeout:60000})
-        log("goto page",i,r.length)
-        let html= await pt.evaluate(()=>document.querySelector("body").innerHTML)
-        log("get html",i,r.length)
-        let gt=await gtrans.prepare();
-        log("make trans",i,r.length)
+    let fn="better-dev-20200425-0.txt"
+
+    async function getHtml(pt,t) {
+        await pt.goto(t.l, {timeout: 60000})
+        let html = await pt.evaluate(() => document.querySelector("body").innerHTML)
+        return html;
+    }
+
+    function parseHtml(html) {
         let root=parser.parse(html,{
             lowerCaseTagName:true,
             script:false,
@@ -101,15 +214,29 @@ async function trans(tor,str){
             pre:true,
             comment:false
         });
-
-        t.html=html;
-        t.text=root.structuredText;
-        log("begin trans",i,r.length);
+        return root.structuredText;
+    }
+    async function getCText(t) {
+        let gt=await gtrans.prepare();
         t.cname=await gtrans.translate(gt.page, t.n);
-        t.ctext=await trans(gt,t.text);
-        log("end trans",i,r.length)
+        if(!t.text){
+            return ;
+        }
+        t.ctext=await transByLine(gt.page,t.text);
         await gt.browser.close();
-        log("close trans",i,r.length)
+    }
+
+    function parseHtml2(html){
+        let r= simplifier.simply(html);
+        return r;
+    }
+
+    async function makeByHtml(t) {
+         t.text=parseHtml(t.html);
+         await getCText(t);
+    }
+
+    function save(t,i) {
         fs.appendFile(fn,JSON.stringify(t)+"\n\n",(e)=>{
             if(e){
                 log("write file error",i,e)
@@ -117,11 +244,21 @@ async function trans(tor,str){
                 log("write success",i)
             }
         })
-        log("done page",i)
+    }
+
+    for(let i=5;i<r.length;i++){
+        let t=r[i];
+        let pt=await bp.browser.newPage();
+
+        try{
+            t.html=await getHtml(pt,t);
+            await makeByHtml(t);
+            save(t,i);
+
         }catch(e){
             log(i,r[i],e)
         }finally{
-           pt.close();
+            pt.close();
         }
     }   
    
