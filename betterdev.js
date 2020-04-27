@@ -3,8 +3,8 @@ const parser=require("node-html-parser")
 const gtrans =require("./gtrans")
 const htmlparser=require("htmlparser2")
 const simplifier=require("./hp2t")
+let fs=require('fs')
 
-const url="https://betterdev.link";
 
 const htmlparser2 = require("htmlparser2");
 const tags={
@@ -114,7 +114,7 @@ async function simply(str,tf) {
 }
 
 async function transSingle(page,str){
-    return await gtrans.translate(page, str);
+    return await gtrans.translate(page, str).catch((e)=>str);
 }
 
 async function transArray(page,sa){
@@ -141,7 +141,7 @@ async function transArray(page,sa){
                 if(t in cache){
                     tr=cache[t]
                 }else {
-                    tr = await transSingle(page,t);
+                    tr = await transSingle(page,t).catch((e)=>t);
                     cache[t]=tr;
                 }
                 log("trans step ",i,sa.length,code,isCode,t,tr)
@@ -170,35 +170,37 @@ async function transByLine(page,str){
     return await transArray(page,sa);
 }
 
-(async()=>{
-    log("begin")
+async function getLinks(page){
+    return await page.evaluate(()=>{
+        let r=[]
+        document.querySelectorAll("div > a")
+            .forEach(a=>{
+                if((!!a.outerText)&&a.href.indexOf("github")<0&&
+                    a.href.indexOf("youtube")<0&&
+                    a.href.indexOf("betterdev")<0&&
+                    a.href.indexOf("twitter")<0)
+                {
+                    let t={
+                        l:a.href,
+                        n:a.outerText
+                    }
+                    r.push(t)
+                }
+            })
+        return r;
+    }).catch(a=>[])
+}
+
+async function spideOne(url,fn,shouldTrans) {
+    log("begin",url)
     let bp=await start(true);
     
     let page=bp.page;
     await page.goto(url,{timeout:0})
-    log("opened")
-    let links=await page.evaluate(()=>{
-        let r=[]
-        document.querySelectorAll("div > a")        
-        .forEach(a=>{
-            if((!!a.outerText)&&a.href.indexOf("github")<0&&
-                a.href.indexOf("youtube")<0&&
-                a.href.indexOf("betterdev")<0&&
-                a.href.indexOf("twitter")<0)
-             {
-                let t={
-                    l:a.href,
-                    n:a.outerText
-                }
-                r.push(t)                
-             } 
-        })
-        return r;
-    })
-    log("links done")
+    log("opened",url)
+    let links=await getLinks(page).catch(a=>[])
+    log("links done",links.length)
     let r=links;
-    let fs=require('fs')
-    let fn="better-dev-20200425-0.txt"
 
     async function getHtml(pt,t) {
         await pt.goto(t.l, {timeout: 60000})
@@ -233,7 +235,10 @@ async function transByLine(page,str){
 
     async function makeByHtml(t) {
          t.text=parseHtml(t.html);
-         await getCText(t);
+         if(shouldTrans){
+             await getCText(t).catch(a=>{log("error in trans",a)});
+         }
+
     }
 
     function save(t,i) {
@@ -246,15 +251,15 @@ async function transByLine(page,str){
         })
     }
 
-    for(let i=5;i<r.length;i++){
+    for(let i=0;i<r.length;i++){
         let t=r[i];
-        let pt=await bp.browser.newPage();
-
+        let pt=await bp.browser.newPage().catch(a=>null);
+        if(pt==null) continue;
         try{
-            t.html=await getHtml(pt,t);
-            await makeByHtml(t);
+            t.html=await getHtml(pt,t).catch(a=>"");
+            await makeByHtml(t).catch(a=>{t=null});
+            if(t==null) continue;
             save(t,i);
-
         }catch(e){
             log(i,r[i],e)
         }finally{
@@ -263,5 +268,43 @@ async function transByLine(page,str){
     }   
    
     log("file done")
-    await bp.browser.close();
+    //await bp.browser.close();
+}
+
+
+
+(async ()=>{
+    const targets=[
+        "https://stratechery.com",
+        "https://lobste.rs",
+    ]
+    let arguments = process.argv.splice(2);
+    let shouldTrans=false;
+    if(arguments.length>0){
+        shouldTrans=!!arguments[0]
+    }
+    for(let i=0;i<targets.length;i++){
+        let url=targets[i]
+        let dn="result/"+new Date().toLocaleDateString()+"/"
+        let fs=require("fs")
+        fs.stat(dn,function (e) {
+            if(e){
+                fs.mkdir(dn,function (e1) {
+                    if(e1){
+                        log("mkdir",e1)
+                    }
+                })
+            }
+        })
+        let fn=dn
+            +url.substr(8)
+            .replace(".","_")
+            .replace("\\","")
+            .replace("/","")
+            +".txt"
+        await spideOne(url,fn,shouldTrans).catch(a=>{
+            log("error",i,a);
+        })
+    }
+
 })()

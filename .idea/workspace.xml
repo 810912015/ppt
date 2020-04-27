@@ -2,11 +2,20 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="8c3106c3-9a4c-441c-86ef-182e161f5db7" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/hp2t.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/better-dev-20200423-1.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/better-dev-20200423-2.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/better-dev-20200423-3.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/better-dev-20200423-5.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/better-dev-20200423-6.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/better-dev-20200423-7.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/better-dev-20200423-8.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/better-dev-20200423-9.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/better-dev-20200423.txt" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/betterdev.js" beforeDir="false" afterPath="$PROJECT_DIR$/betterdev.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/betterdev.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/result.txt" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -74,12 +83,20 @@
       <workItem from="1587651806298" duration="3082000" />
       <workItem from="1587685411865" duration="5680000" />
       <workItem from="1587773204150" duration="10322000" />
-      <workItem from="1587783663042" duration="4259000" />
+      <workItem from="1587783663042" duration="5930000" />
+      <workItem from="1587857106300" duration="1212000" />
+      <workItem from="1587942101767" duration="6871000" />
     </task>
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="2" />
+  </component>
+  <component name="WindowStateProjectService">
+    <state x="826" y="221" key="RollbackChangesDialog" timestamp="1587942648062">
+      <screen x="0" y="0" width="1920" height="1040" />
+    </state>
+    <state x="826" y="221" key="RollbackChangesDialog/0.0.1920.1040@0.0.1920.1040" timestamp="1587942648062" />
   </component>
   <component name="masterDetails">
     <states>
