@@ -1,4 +1,5 @@
 const htmlparser2 = require("htmlparser2");
+const gtrans =require("./gtrans")
 const tags={
     html:"",
     cfg:{
@@ -55,11 +56,15 @@ function writeOpen(name,attrs) {
     tags.html+=">"
 }
 
-function simply(str) {
+async function simply(str) {
+    console.log("start")
+    let gt=await gtrans.prepare();
+    console.log("gtrans ready")
     tags.html="";
     const parser = new htmlparser2.Parser(
         {
             onopentag(name, attribs) {
+                console.log("open",name,attribs)
                 if(isIgnore(name)){
                     tags.include=false
                     return;
@@ -70,11 +75,20 @@ function simply(str) {
                 writeOpen(name,attribs)
             },
             async ontext(text) {
+                console.log("text",text,!text)
+                if(!text) return ;
                 if(tags.include) {
-                   tags.html += text;
+                    if(tags.untouch){
+                        tags.html += text;
+                    }else{
+                        let tr=await gtrans.translate(gt.page,text).catch(a=>text)
+                        tags.html+=tr
+                        console.log("tr",text,tr)
+                    }
                 }
             },
             onclosetag(name) {
+                console.log("close",name)
                 if(isIgnore(name)){
                     tags.include=true
                     return;
@@ -93,1074 +107,779 @@ function simply(str) {
         },
         { decodeEntities: true }
     );
+
+    console.log("parser ready")
     parser.write(str);
+    console.log("parser write done")
     parser.end();
+    console.log("parser end")
     const r=tags.html;
+    // await gt.browser.close();
+    // console.log("gtrans close")
     return r;
 }
+function addWithAttr(name,attrs) {
+    let html="";
+    html+="<";
+    html+=name;
+    for(let a in attrs){
+        html+=" "+a+"='"+attrs[a]+"'"
+    }
+    html+=">"
+    return html;
+}
+async function simply2(str) {
+    console.log("start")
+    let gt=await gtrans.prepare();
+    console.log("gtrans ready")
+    let isPre=false;
+    let result="";
+    let ignore=false;
+    const parser = new htmlparser2.Parser(
+        {
+            onopentag(name, attribs) {
+                let r="";
+                if(name==="script"||name==="link"||name==="style") {
+                    ignore=true;
+                    return;
+                }
+                if(name==="pre"){
+                    isPre=true;
+                    r="<"+name+">"
+                    console.log(r);
+                    result+=r;
+                }else if(!isPre){
+                    if(name==="img"){
+                        r=addWithAttr(name,attribs);
+                        console.log(r);
+                        result+=r;
+                    }
+                }
 
-module.exports={simply};
+            },
+            async ontext(text) {
+                let r="";
+                if(ignore) return ;
+
+                if(isPre){
+                    r=text;
+                    console.log(r);
+                    result+=r;
+                }else{
+                    if(text.length<5){
+                        r=text
+                        console.log(r);
+                        result+=r;
+                    }else {
+                        r = await gtrans.translate(gt.page,text).catch(a=>text)
+
+                        console.log(r);
+                        result+=r;
+                    }
+                }
+
+            },
+            onclosetag(name) {
+                if(name==="script"||name==="link"||name==="style") {
+                    ignore=false;
+                    return;
+                }
+                let r="";
+                if(name==="pre"){
+                    isPre=false;
+                    r="</"+name+">";
+                    console.log(r);
+                    result+=r;
+                }else if(name==="img"){
+                    r="</"+name+">";
+                    console.log(r);
+                    result+=r;
+                }
+
+            }
+        },
+        { decodeEntities: true }
+    );
+
+    console.log("parser ready")
+    parser.write(str);
+    console.log("parser write done")
+    parser.end();
+    console.log("parser end")
+    return result;
+}
+
+module.exports={simply2};
+
+async function test() {
+    function gets3(){
+        return " <nav class=\"navbar navbar-default navbar-fixed-top navbar-custom\">\n" +
+            "  <div class=\"container-fluid\">\n" +
+            "    <div class=\"navbar-header\">\n" +
+            "      <button type=\"button\" class=\"navbar-toggle\" data-toggle=\"collapse\" data-target=\"#main-navbar\">\n" +
+            "        <span class=\"sr-only\">Toggle navigation</span>\n" +
+            "        <span class=\"icon-bar\"></span>\n" +
+            "        <span class=\"icon-bar\"></span>\n" +
+            "        <span class=\"icon-bar\"></span>\n" +
+            "      </button>\n" +
+            "      <a class=\"navbar-brand\" href=\"https://sookocheff.com\">Kevin Sookocheff</a>\n" +
+            "    </div>\n" +
+            "\n" +
+            "    <div class=\"collapse navbar-collapse\" id=\"main-navbar\">\n" +
+            "      <ul class=\"nav navbar-nav navbar-right\">\n" +
+            "        \n" +
+            "          \n" +
+            "            <li>\n" +
+            "              <a title=\"Blog\" href=\"/\">Blog</a>\n" +
+            "            </li>\n" +
+            "          \n" +
+            "        \n" +
+            "          \n" +
+            "            <li>\n" +
+            "              <a title=\"About\" href=\"/page/about/\">About</a>\n" +
+            "            </li>\n" +
+            "          \n" +
+            "        \n" +
+            "          \n" +
+            "            <li class=\"navlinks-container\" style=\"min-width: 77px;\">\n" +
+            "              <a class=\"navlinks-parent\">Subscribe</a>\n" +
+            "              <div class=\"navlinks-children\">\n" +
+            "                \n" +
+            "                  <a href=\"https://sookocheff.us3.list-manage.com/subscribe?u=8b57d632b8677f07ca57dc9cb&amp;id=ec7ddaa3ba\">email</a>\n" +
+            "                \n" +
+            "                  <a href=\"/index.xml\">RSS</a>\n" +
+            "                \n" +
+            "              </div>\n" +
+            "            </li>\n" +
+            "          \n" +
+            "        \n" +
+            "\n" +
+            "        \n" +
+            "\n" +
+            "        \n" +
+            "      </ul>\n" +
+            "    </div>\n" +
+            "\n" +
+            "    \n" +
+            "      <div class=\"avatar-container\">\n" +
+            "        <div class=\"avatar-img-border\">\n" +
+            "          <a title=\"Kevin Sookocheff\" href=\"https://sookocheff.com\">\n" +
+            "            <img class=\"avatar-img\" src=\"https://sookocheff.com/img/avatar.png\" alt=\"Kevin Sookocheff\">\n" +
+            "          </a>\n" +
+            "        </div>\n" +
+            "      </div>\n" +
+            "    \n" +
+            "\n" +
+            "  </div>\n" +
+            "</nav>\n" +
+            "\n" +
+            "\n" +
+            "\n" +
+            "\n" +
+            "    \n" +
+            "\n" +
+            "\n" +
+            "<div class=\"pswp\" tabindex=\"-1\" role=\"dialog\" aria-hidden=\"true\">\n" +
+            "\n" +
+            "<div class=\"pswp__bg\"></div>\n" +
+            "\n" +
+            "<div class=\"pswp__scroll-wrap\">\n" +
+            "    \n" +
+            "    <div class=\"pswp__container\">\n" +
+            "      <div class=\"pswp__item\"></div>\n" +
+            "      <div class=\"pswp__item\"></div>\n" +
+            "      <div class=\"pswp__item\"></div>\n" +
+            "    </div>\n" +
+            "    \n" +
+            "    <div class=\"pswp__ui pswp__ui--hidden\">\n" +
+            "    <div class=\"pswp__top-bar\">\n" +
+            "      \n" +
+            "      <div class=\"pswp__counter\"></div>\n" +
+            "      <button class=\"pswp__button pswp__button--close\" title=\"Close (Esc)\"></button>\n" +
+            "      <button class=\"pswp__button pswp__button--share\" title=\"Share\"></button>\n" +
+            "      <button class=\"pswp__button pswp__button--fs\" title=\"Toggle fullscreen\"></button>\n" +
+            "      <button class=\"pswp__button pswp__button--zoom\" title=\"Zoom in/out\"></button>\n" +
+            "      \n" +
+            "      \n" +
+            "      <div class=\"pswp__preloader\">\n" +
+            "        <div class=\"pswp__preloader__icn\">\n" +
+            "          <div class=\"pswp__preloader__cut\">\n" +
+            "            <div class=\"pswp__preloader__donut\"></div>\n" +
+            "          </div>\n" +
+            "        </div>\n" +
+            "      </div>\n" +
+            "    </div>\n" +
+            "    <div class=\"pswp__share-modal pswp__share-modal--hidden pswp__single-tap\">\n" +
+            "      <div class=\"pswp__share-tooltip\"></div>\n" +
+            "    </div>\n" +
+            "    <button class=\"pswp__button pswp__button--arrow--left\" title=\"Previous (arrow left)\">\n" +
+            "    </button>\n" +
+            "    <button class=\"pswp__button pswp__button--arrow--right\" title=\"Next (arrow right)\">\n" +
+            "    </button>\n" +
+            "    <div class=\"pswp__caption\">\n" +
+            "      <div class=\"pswp__caption__center\"></div>\n" +
+            "    </div>\n" +
+            "    </div>\n" +
+            "    </div>\n" +
+            "</div>\n" +
+            "\n" +
+            "\n" +
+            "  \n" +
+            "  \n" +
+            "  \n" +
+            "\n" +
+            "\n" +
+            "\n" +
+            "\n" +
+            "\n" +
+            "\n" +
+            "  \n" +
+            "\n" +
+            "  <header class=\"header-section \">\n" +
+            "    \n" +
+            "    <div class=\"intro-header no-img\">\n" +
+            "      <div class=\"container\">\n" +
+            "        <div class=\"row\">\n" +
+            "          <div class=\"col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1\">\n" +
+            "            <div class=\"post-heading\">\n" +
+            "              \n" +
+            "                <h1>How Does DNS Work?</h1>\n" +
+            "              \n" +
+            "              \n" +
+            "              \n" +
+            "              \n" +
+            "                <span class=\"post-meta\">\n" +
+            "  \n" +
+            "  \n" +
+            "  <i class=\"fas fa-calendar\"></i>&nbsp;Posted on April 16, 2020\n" +
+            "  \n" +
+            "  \n" +
+            "    &nbsp;|&nbsp;<i class=\"fas fa-clock\"></i>&nbsp;12&nbsp;minutes\n" +
+            "  \n" +
+            "  \n" +
+            "  \n" +
+            "    \n" +
+            "      &nbsp;|&nbsp;<i class=\"fas fa-user\"></i>&nbsp;Kevin Sookocheff\n" +
+            "    \n" +
+            "  \n" +
+            "  \n" +
+            "</span>\n" +
+            "\n" +
+            "\n" +
+            "              \n" +
+            "            </div>\n" +
+            "          </div>\n" +
+            "        </div>\n" +
+            "      </div>\n" +
+            "    </div>\n" +
+            "  </header>\n" +
+            "\n" +
+            "\n" +
+            "    \n" +
+            "<div class=\"container\" role=\"main\">\n" +
+            "  <div class=\"row\">\n" +
+            "    <div class=\"col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1\">\n" +
+            "      <article role=\"main\" class=\"blog-post\">\n" +
+            "        <p>Before the Internet became a global network connecting millions of devices, it\n" +
+            "was a simple research experiment connecting a handful of institutions. In the\n" +
+            "beginning, the number of unique internet addresses could be measured in the\n" +
+            "tens. As the network expanded that number quickly grew into the hundreds and\n" +
+            "thousands and it became difficult to remember and type in IP addresses for each\n" +
+            "of these hosts.</p>\n" +
+            "<p>To manage the growing number of network hosts, a simple text file, called\n" +
+            "<code>HOSTS.txt</code> recorded each host and their IP address. To add your name to the\n" +
+            "hosts file, you needed to send an e-mail describing the changes you wanted to\n" +
+            "apply. The authority for the <code>HOSTS.txt</code> file would apply these changes once or\n" +
+            "twice a week and anyone who wanted to grab the updated list would periodically\n" +
+            "FTP to the canonical source, grab the latest file, and update their own list of\n" +
+            "hosts. Naturally, as this small network expanded into, and was eventually\n" +
+            "replaced by, the Internet, this solution became untenable – there were just too\n" +
+            "many hosts to keep track of, keep consistent, and to serve from a single\n" +
+            "canonical file using FTP and manual updates. <code>HOSTS.txt</code> did not scale.</p>\n" +
+            "<p>The Domain Name System (DNS) was developed to scale the <code>HOSTS.txt</code> model to the\n" +
+            "global Internet. The goals for the system were to allow for local administration\n" +
+            "of portions of the data set while also making changes and updates to local data\n" +
+            "available to the global Internet. The result is a globally distributed\n" +
+            "hierarchical database that maps domain names to Internet hosts throughout the\n" +
+            "world.</p>\n" +
+            "<h2 id=\"the-domain-namespace\">The Domain Namespace</h2>\n" +
+            "<p>The DNS distributed database is an inverted tree indexed by domain names. Taken\n" +
+            "together, the entire tree is called the <em>domain namespace</em> and represents the\n" +
+            "entire set of Internet domain names. Like a file system, the tree begins at a\n" +
+            "root node, inner nodes in the tree help organize hosts into domains, and leaf\n" +
+            "nodes provide information on a single host. Each node in the tree has a text\n" +
+            "label describing its portion of a fully qualified domain name. The full domain\n" +
+            "name for any node is the sequence of labels on the path from that node up to the\n" +
+            "root of the tree, with a dot separating the text labels along the path. The only\n" +
+            "restriction to node labels is that siblings in the tree have unique names to\n" +
+            "guarantee that a domain name uniquely identifies a single node in the tree.</p>\n" +
+            "<p>An example will help illustrate the concept.</p>\n" +
+            "\n" +
+            "<link rel=\"stylesheet\" href=\"https://sookocheff.com/css/hugo-easy-gallery.css\">\n" +
+            "<div class=\"box\">\n" +
+            "  <figure itemprop=\"associatedMedia\" itemscope=\"\" itemtype=\"http://schema.org/ImageObject\">\n" +
+            "    <div class=\"img\">\n" +
+            "      <img itemprop=\"thumbnail\" src=\"assets/dns-example.png\" alt=\"assets/dns-example.png\">\n" +
+            "    </div>\n" +
+            "    <a href=\"assets/dns-example.png\" itemprop=\"contentUrl\"></a>\n" +
+            "      <figcaption><h4>A simplified domain namespace</h4>\n" +
+            "      </figcaption>\n" +
+            "  </figure>\n" +
+            "</div>\n" +
+            "\n" +
+            "<p>Remember that domain names are just indexes into the DNS database. For leaf\n" +
+            "nodes, the data at the node represents an individual host on the network with\n" +
+            "information like the network addresses, mail-routing information, or hardware\n" +
+            "information. Nodes inside the tree can represent both a domain and a particular\n" +
+            "host. In our example above, the <code>sookocheff.com</code> node represents both the sookocheff\n" +
+            "domain and it represents the hosts that serve the <code>sookocheff.com</code> site you are\n" +
+            "currently looking at.</p>\n" +
+            "<h2 id=\"resource-records-and-zone-files\">Resource Records and Zone Files</h2>\n" +
+            "<p>The data indexed by a domain name is called a <em>resource record</em>. There are\n" +
+            "several types of records for different types of data. For example, there are\n" +
+            "unique resource records for mail routing and for or host address information.\n" +
+            "Each record type specifies is own syntax and semantic rules to follow.</p>\n" +
+            "<p>The collection of resource records stored by a host are stored in zone files.\n" +
+            "Every domain that a host knows about is stored in a zone file, and it is these\n" +
+            "zone files that get distributed across the Internet to form the global\n" +
+            "distributed DNS database. A zone file is a simple text file that contains the\n" +
+            "mappings between domain names and IP addresses. DNS nameservers use this zone\n" +
+            "file to find out which IP address should be contacted when a user requests a\n" +
+            "particular domain name.</p>\n" +
+            "<p>The zone file contains different classes of DNS records. For our purposes, we\n" +
+            "will focus on the <code>IN</code> record class that defines the set of DNS records for the\n" +
+            "Internet. All resource records use the following format, regardless of class or\n" +
+            "type.</p>\n" +
+            "<table>\n" +
+            "<thead>\n" +
+            "<tr>\n" +
+            "<th></th>\n" +
+            "<th>host label</th>\n" +
+            "<th>ttl</th>\n" +
+            "<th>record class</th>\n" +
+            "<th>record type</th>\n" +
+            "<th>record data</th>\n" +
+            "</tr>\n" +
+            "</thead>\n" +
+            "<tbody>\n" +
+            "<tr>\n" +
+            "<td>Example</td>\n" +
+            "<td>example.com.</td>\n" +
+            "<td>60</td>\n" +
+            "<td>IN</td>\n" +
+            "<td>A</td>\n" +
+            "<td>104.255.228.125</td>\n" +
+            "</tr>\n" +
+            "</tbody>\n" +
+            "</table>\n" +
+            "<ul>\n" +
+            "<li><strong>Host Label</strong>. A host label defines the hostname of a record and whether the\n" +
+            "$ORIGIN hostname will be appended to the label. Fully qualified hostnames\n" +
+            "terminated by a period will not append the origin.</li>\n" +
+            "<li><strong>TTL</strong>. TTL is the amount of time in seconds that a DNS record will be cached\n" +
+            "by an outside DNS server or resolver.</li>\n" +
+            "<li><strong>Record Class</strong>. There are three classes of DNS records: IN (Internet), CH\n" +
+            "(Chaosnet), and HS (Hesiod). The IN class is used by the Internet, the other\n" +
+            "classes are used for alternate networks we won’t discuss here.</li>\n" +
+            "<li><strong>Record Type</strong>. Defines the syntax and semantics for this record.</li>\n" +
+            "<li><strong>Record Data</strong>. The actual data for the record, such as an IP address,\n" +
+            "hostname, or other information. Different record types will contain different\n" +
+            "types of record data.</li>\n" +
+            "</ul>\n" +
+            "<h3 id=\"a-and-aaaa-records\">A and AAAA Records</h3>\n" +
+            "<p><code>A</code> and <code>AAAA</code> both map a domain to an IP address, with the <code>A</code> record used to\n" +
+            "map a host to an IPv4 IP address, and an <code>AAAA</code> record used to map a host to an\n" +
+            "IPv6 address.</p>\n" +
+            "<p>The general format of these records is this:</p>\n" +
+            "<div class=\"highlight\"><pre class=\"chroma\"><code class=\"language-fallback\" data-lang=\"fallback\">sookocheff  IN      A       IPv4_address\n" +
+            "sookocheff  IN      AAAA    IPv6_address\n" +
+            "</code></pre></div><h3 id=\"cname-records\">CNAME Records</h3>\n" +
+            "<p><code>CNAME</code> records define an alias for an <code>A</code> or <code>AAAA</code> record. For instance, we\n" +
+            "could have an <code>A</code> name record defining the “sookocheff” host and then use the “www”\n" +
+            "as an alias for this host:</p>\n" +
+            "<div class=\"highlight\"><pre class=\"chroma\"><code class=\"language-fallback\" data-lang=\"fallback\">sookocheff  IN  A       111.111.111.111\n" +
+            "www         IN  CNAME   sookocheff\n" +
+            "</code></pre></div><h3 id=\"mx-records\">MX Records</h3>\n" +
+            "<p><code>MX</code> records are used to define the mail exchanges used by the domain to route\n" +
+            "email messages addressed to this domain to the appropriate mail server. Unlike\n" +
+            "many other record types, mail records generally don’t map a host to something,\n" +
+            "because they apply to the entire zone. As such, <code>MX</code> records are usually defined\n" +
+            "with no host name at the beginning:</p>\n" +
+            "<div class=\"highlight\"><pre class=\"chroma\"><code class=\"language-fallback\" data-lang=\"fallback\">        IN  MX  10   mail.sookocheff.com.\n" +
+            "</code></pre></div><p>Also note that there is an extra number in the record (<code>10</code>). This is the\n" +
+            "preference number that helps computers decide which server to send mail to if\n" +
+            "there are multiple mail servers defined. Lower numbers have a higher priority.</p>\n" +
+            "<h3 id=\"ns-records\">NS Records</h3>\n" +
+            "<p>This record type defines the name servers that are used for this zone.</p>\n" +
+            "<p>You may be wondering, “if a namserver manages the zone file, why do we need to\n" +
+            "specify a nameserver in the zone file?”. To answer this, we need to think about\n" +
+            "what makes DNS so successful – it’s distributed database with multiple levels\n" +
+            "of caching. Fefining nameservers within the zone file is necessary because the\n" +
+            "zone file may be served from a cached or slave copy of the file on another name\n" +
+            "server. In this case, you need to reference the master nameserver in the zone file in cases where your cache is old or out of date.</p>\n" +
+            "<p>Like the <code>MX</code> records, these are zone-wide parameters, so they do not specify\n" +
+            "hosts. <code>NS</code> records look like:</p>\n" +
+            "<div class=\"highlight\"><pre class=\"chroma\"><code class=\"language-fallback\" data-lang=\"fallback\">        IN  NS     ns1.sookocheff.com.\n" +
+            "        IN  NS     ns2.sookocheff.com.\n" +
+            "</code></pre></div><h3 id=\"an-example-zone-file\">An Example Zone File</h3>\n" +
+            "<p>The following file provides a full example of a zone file</p>\n" +
+            "<div class=\"highlight\"><pre class=\"chroma\"><code class=\"language-fallback\" data-lang=\"fallback\">$ORIGIN sookocheff.com.\n" +
+            "@                      3600 SOA   ns1.p30.dynect.net. (\n" +
+            "                              zone-admin.dyndns.com.     ; address of responsible party\n" +
+            "                              2016072701                 ; serial number\n" +
+            "                              3600                       ; refresh period\n" +
+            "                              600                        ; retry period\n" +
+            "                              604800                     ; expire time\n" +
+            "                              1800                     ) ; minimum ttl\n" +
+            "                      86400 NS    ns1.p30.dynect.net.\n" +
+            "                      86400 NS    ns2.p30.dynect.net.\n" +
+            "                      86400 NS    ns3.p30.dynect.net.\n" +
+            "                      86400 NS    ns4.p30.dynect.net.\n" +
+            "                       3600 MX    10 mail.example.com.\n" +
+            "                       3600 MX    20 vpn.example.com.\n" +
+            "                       3600 MX    30 mail.example.com.\n" +
+            "                         60 A     204.13.248.106\n" +
+            "                       3600 TXT   \"v=spf1 includespf.dynect.net ~all\"\n" +
+            "mail                  14400 A     204.13.248.106\n" +
+            "vpn                      60 A     216.146.45.240\n" +
+            "webapp                   60 A     216.146.46.10\n" +
+            "webapp                   60 A     216.146.46.11\n" +
+            "www                   43200 CNAME example.com.\n" +
+            "</code></pre></div><p>In a zone file, <code>$ORIGIN</code> indicates a node in the DNS domain namespace tree. Any\n" +
+            "labels below the origin will append the origin hostname to assemble a fully\n" +
+            "qualified hostname. Any label within a record that uses a fully qualified domain\n" +
+            "terminating with an ending period will not append the origin hostname. For\n" +
+            "example, by stating <code>$ORIGIN sookocheff.com.</code>, any record where the host label field is\n" +
+            "not followed by a period will have <code>sookocheff.com.</code> will be appended to them.\n" +
+            "This means that the label <code>mail</code> will be interpreted as <code>mail.sookocheff.com.</code>.</p>\n" +
+            "<p>The <code>@</code> symbol is a special label that is simply a short-hand for <code>$ORIGIN</code>.\n" +
+            "During resolution, the <code>@</code> symbol will be replaced by <code>example.com.</code>.</p>\n" +
+            "<p>The <code>$ORIGIN</code> is followed by the zone’s Start Of Authority (<code>SOA</code>) record. A\n" +
+            "Start Of Authority record is required for each zone. It starts with the primary\n" +
+            "nameserver of the zone, and is followed by a block of metadata including the\n" +
+            "e-mail address of the party responsible for administering the domain’s zone\n" +
+            "file, the current serial number of the zone which should be modified whenever\n" +
+            "data in the zone file changes, and various timing elements for caching, refresh,\n" +
+            "and retry.</p>\n" +
+            "<p>After the <code>SOA</code> portion of the zone file come the resource records this\n" +
+            "nameserver knows about defined using the resource types listed in the previous\n" +
+            "section.</p>\n" +
+            "<h2 id=\"nameservers-and-zones\">Nameservers and Zones</h2>\n" +
+            "<p>Each domain namespace is served by a program called a <em>nameserver</em>. Nameservers\n" +
+            "generally have complete information about some part of the domain namespace,\n" +
+            "called a <em>zone</em>. The nameserver with this complete information is called the\n" +
+            "<em>authority</em> for that zone.</p>\n" +
+            "<p>The difference between a namespace and a zone is subtle but important. Whereas a\n" +
+            "domain is the strict labeling of a portion of the namespace, each domain can be\n" +
+            "broken up into smaller units called zones by delegation. For example, the <code>.ca</code>\n" +
+            "domain for Canada can be broken up into different zones for each province:\n" +
+            "<code>gc.ca</code>, <code>ab.ca</code>, <code>on.ca</code>, and so on. Each of these provincial zones can be\n" +
+            "administered by the provinces using authoratitive nameservers, while the <code>.ca</code>\n" +
+            "zone would contain the delegation information pointing to the nameservers of\n" +
+            "each of the delegated provincial zones. The <code>.ca</code> zone does not <em>have</em> to\n" +
+            "delegate. In some cases, the top-level zone may be the authoritative nameserver\n" +
+            "for some of the lower-level zones. The following figure, from the 5th Edition of\n" +
+            "<a href=\"http://shop.oreilly.com/product/9780596100575.do\">DNS and BIND</a> shows an\n" +
+            "example division of the <code>.ca</code> domain into multiple zones where some of the zones\n" +
+            "are delegated to provinces and others are handled by the root <code>.ca</code> zone.</p>\n" +
+            "\n" +
+            "\n" +
+            "<div class=\"box\">\n" +
+            "  <figure itemprop=\"associatedMedia\" itemscope=\"\" itemtype=\"http://schema.org/ImageObject\">\n" +
+            "    <div class=\"img\">\n" +
+            "      <img itemprop=\"thumbnail\" src=\"assets/ca-zones.png\" alt=\"assets/ca-zones.png\">\n" +
+            "    </div>\n" +
+            "    <a href=\"assets/ca-zones.png\" itemprop=\"contentUrl\"></a>\n" +
+            "      <figcaption><h4>Sample zones for the .ca domain</h4>\n" +
+            "      </figcaption>\n" +
+            "  </figure>\n" +
+            "</div>\n" +
+            "\n" +
+            "<p>There are two types of nameservers in DNS: <em>master</em> (*or <em>primary</em>) servers that\n" +
+            "read zone data from a datafile on the host, and <em>slave</em> (or <em>secondary</em>) servers\n" +
+            "that read zone data from master or other slave servers. Whenever slave servers\n" +
+            "start-up, and periodically afterwards, they contact their master server to fetch\n" +
+            "updated data for their zone. The master server and any secondaries are all\n" +
+            "considered authoritative for a zone. The data on the servers are simply the\n" +
+            "resource records that describe the zone stored in a zone file. These records\n" +
+            "describe all the hosts in the zone and record any delegation points that direct\n" +
+            "to subdomains.</p>\n" +
+            "<h2 id=\"resolvers\">Resolvers</h2>\n" +
+            "<p>DNS <em>resolvers</em> are the clients that query for DNS information from a\n" +
+            "nameserver. These programs run on a host to query a DNS nameserver, interpret\n" +
+            "the response, and return the information to the programs that request it. In\n" +
+            "DNS, the resolver implements the recursive query algorithm that traverses the\n" +
+            "inverted namespace tree until it finds the result for a query (or an error).</p>\n" +
+            "<p>Resolvers are only useful when doing DNS resolution, which we cover next.</p>\n" +
+            "<h2 id=\"resolution-putting-it-all-together\">Resolution: Putting it all Together</h2>\n" +
+            "<p>As we’ve discussed, the domain namespace is structured as an inverted tree. This\n" +
+            "structure allows a nameserver to use a single piece of information — the\n" +
+            "location of the root nameservers — to find any other domain in the tree.</p>\n" +
+            "<p>The root nameservers are the authoritative nameservers for all top-level\n" +
+            "domains. That is, given a query about any domain name, the root nameservers can\n" +
+            "provide the names and addresses of the authoritative nameservers for the\n" +
+            "top-level domains. In turn, the top-level nameservers can provide the list of\n" +
+            "authoritative nameservers for the second-level domains, and so on. In this\n" +
+            "recursive fashion, every time a nameserver is queried, it will either return the\n" +
+            "data for the domains it is authoritative for, or it will return information that\n" +
+            "is closer to the correct answer.</p>\n" +
+            "<p>The following diagram from <a href=\"https://aws.amazon.com/route53/what-is-dns/\">Amazon’s Route 53\n" +
+            "documentation</a> gives an overview of\n" +
+            "how recursive and authoritative DNS services work together to route an end user\n" +
+            "to your website or application.</p>\n" +
+            "\n" +
+            "\n" +
+            "<div class=\"box\">\n" +
+            "  <figure itemprop=\"associatedMedia\" itemscope=\"\" itemtype=\"http://schema.org/ImageObject\">\n" +
+            "    <div class=\"img\">\n" +
+            "      <img itemprop=\"thumbnail\" src=\"assets/dns-resolution.png\" alt=\"assets/dns-resolution.png\">\n" +
+            "    </div>\n" +
+            "    <a href=\"assets/dns-resolution.png\" itemprop=\"contentUrl\"></a>\n" +
+            "      <figcaption><h4>An example DNS resolution</h4>\n" +
+            "      </figcaption>\n" +
+            "  </figure>\n" +
+            "</div>\n" +
+            "\n" +
+            "<ol>\n" +
+            "<li>A user opens a web browser, enters <a href=\"http://www.example.com\">www.example.com</a> in the address bar, and\n" +
+            "presses Enter.</li>\n" +
+            "<li>The request for <a href=\"http://www.example.com\">www.example.com</a> is routed to a DNS resolver, which is\n" +
+            "typically managed by the user’s Internet service provider (ISP), such as a\n" +
+            "cable Internet provider, a DSL broadband provider, or a corporate network.</li>\n" +
+            "<li>The DNS resolver for the ISP forwards the request for <a href=\"http://www.example.com\">www.example.com</a> to a\n" +
+            "DNS root name server. The root name server responds with the authoritative\n" +
+            "namerservers for the .com top-level domain (TLD)aut</li>\n" +
+            "<li>The DNS resolver for the ISP forwards the request for <a href=\"http://www.example.com\">www.example.com</a> again,\n" +
+            "this time to one of the TLD name servers for .com domains. The name server\n" +
+            "for .com domains responds to the request with the names of the nameservers\n" +
+            "that are associated with the example.com domain. In this example, those\n" +
+            "nameservers are implemented using Amazon Route 53.</li>\n" +
+            "<li>The DNS resolver for the ISP chooses an Amazon Route 53 name server and\n" +
+            "forwards the request for <a href=\"http://www.example.com\">www.example.com</a> to that name server.</li>\n" +
+            "<li>The Amazon Route 53 name server looks in the example.com hosted zone datafile\n" +
+            "for the <a href=\"http://www.example.com\">www.example.com</a> record, gets the associated value, such as the IP\n" +
+            "address for a web server, 192.0.2.44, and returns the IP address to the DNS\n" +
+            "resolver.</li>\n" +
+            "<li>The DNS resolver for the ISP finally has the IP address that the user needs.\n" +
+            "The resolver returns that value to the web browser. The DNS resolver also\n" +
+            "caches (stores) the IP address for example.com so that it can respond more\n" +
+            "quickly the next time someone browses to example.com.</li>\n" +
+            "<li>The web browser sends a request to the IP address that it got from the DNS\n" +
+            "resolver.</li>\n" +
+            "<li>The web server or other resource at 192.0.2.44 returns the web page for\n" +
+            "<a href=\"http://www.example.com\">www.example.com</a> to the web browser, and the web browser displays the page.</li>\n" +
+            "</ol>\n" +
+            "<p>The example resolution we’ve used to convert the <code>www.example.com</code> domain into\n" +
+            "the <code>192.0.2.44</code> IP address is fairly convoluted. To improve access speeds,\n" +
+            "namservers typically cache query results to help speed up successive queries.</p>\n" +
+            "<h2 id=\"references\">References</h2>\n" +
+            "<p>This article provides an introduction to DNS. If you want to learn more, there\n" +
+            "are several great resources to choose from:</p>\n" +
+            "<ul>\n" +
+            "<li><a href=\"https://aws.amazon.com/route53/what-is-dns/\">What is DNS?</a></li>\n" +
+            "<li><a href=\"http://shop.oreilly.com/product/9780596100575.do\">DNS and BIND, 5th Edition</a></li>\n" +
+            "<li><a href=\"https://www.digitalocean.com/community/tutorials/an-introduction-to-dns-terminology-components-and-concepts\">An Introduction to DNS Terminology, Components, and Concepts</a></li>\n" +
+            "<li><a href=\"https://tools.ietf.org/html/rfc1035\">RFC 1035 Domain Names - Implementation and Specification</a></li>\n" +
+            "</ul>\n" +
+            "\n" +
+            "\n" +
+            "        \n" +
+            "          <div class=\"blog-tags\">\n" +
+            "            \n" +
+            "              <a href=\"https://sookocheff.com/tags/networking/\">networking</a>&nbsp;\n" +
+            "            \n" +
+            "              <a href=\"https://sookocheff.com/tags/dns/\">dns</a>&nbsp;\n" +
+            "            \n" +
+            "          </div>\n" +
+            "        \n" +
+            "\n" +
+            "        \n" +
+            "\n" +
+            "        \n" +
+            "          \n" +
+            "            \n" +
+            "          \n" +
+            "\n" +
+            "          \n" +
+            "                  <h4 class=\"see-also\">See also</h4>\n" +
+            "                  <ul>\n" +
+            "                \n" +
+            "                \n" +
+            "                    <li><a href=\"/post/networking/how-does-web-rtc-work/\">How Does WebRTC Work?</a></li>\n" +
+            "                \n" +
+            "                    <li><a href=\"/post/networking/how-does-lte-work/\">How Does LTE Work?</a></li>\n" +
+            "                \n" +
+            "                    <li><a href=\"/post/networking/how-does-wifi-work/\">How Does WiFi Work?</a></li>\n" +
+            "                \n" +
+            "                    <li><a href=\"/post/networking/how-does-ethernet-work/\">How Does Ethernet Work?</a></li>\n" +
+            "                \n" +
+            "                    <li><a href=\"/post/networking/wireless-networks-and-shannons-law/\">Wireless Networks and Shannon’s Law</a></li>\n" +
+            "                \n" +
+            "              </ul>\n" +
+            "\n" +
+            "          \n" +
+            "        \n" +
+            "      </article>\n" +
+            "\n" +
+            "      \n" +
+            "        <ul class=\"pager blog-pager\">\n" +
+            "          \n" +
+            "            <li class=\"previous\">\n" +
+            "              <a href=\"https://sookocheff.com/post/architecture/building-learning-communities/\" data-toggle=\"tooltip\" data-placement=\"top\" title=\"Building Learning Communities\">← Previous Post</a>\n" +
+            "            </li>\n" +
+            "          \n" +
+            "          \n" +
+            "            <li class=\"next\">\n" +
+            "              <a href=\"https://sookocheff.com/post/systems/above-the-line-below-the-line/\" data-toggle=\"tooltip\" data-placement=\"top\" title=\"Above-the-line and below-the-line\">Next Post →</a>\n" +
+            "            </li>\n" +
+            "          \n" +
+            "        </ul>\n" +
+            "      \n" +
+            "\n" +
+            "\n" +
+            "      \n" +
+            "        \n" +
+            "          \n" +
+            "          <div class=\"disqus-comments\">\n" +
+            "            <div id=\"disqus_thread\"></div>\n" +
+            "<script type=\"application/javascript\">\n" +
+            "    var disqus_config = function () {\n" +
+            "    \n" +
+            "    \n" +
+            "    \n" +
+            "    };\n" +
+            "    (function() {\n" +
+            "        if ([\"localhost\", \"127.0.0.1\"].indexOf(window.location.hostname) != -1) {\n" +
+            "            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';\n" +
+            "            return;\n" +
+            "        }\n" +
+            "        var d = document, s = d.createElement('script'); s.async = true;\n" +
+            "        s.src = '//' + \"kevinsookocheff\" + '.disqus.com/embed.js';\n" +
+            "        s.setAttribute('data-timestamp', +new Date());\n" +
+            "        (d.head || d.body).appendChild(s);\n" +
+            "    })();\n" +
+            "</script>\n" +
+            "<noscript>Please enable JavaScript to view the <a href=\"https://disqus.com/?ref_noscript\">comments powered by Disqus.</a></noscript>\n" +
+            "<a href=\"https://disqus.com\" class=\"dsq-brlink\">comments powered by <span class=\"logo-disqus\">Disqus</span></a>\n" +
+            "          </div>\n" +
+            "          \n" +
+            "        \n" +
+            "        \n" +
+            "      \n" +
+            "\n" +
+            "    </div>\n" +
+            "  </div>\n" +
+            "</div>\n" +
+            "\n" +
+            "      \n" +
+            "<footer>\n" +
+            "  <div class=\"container\">\n" +
+            "    <div class=\"row\">\n" +
+            "      <div class=\"col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1\">\n" +
+            "        <ul class=\"list-inline text-center footer-links\">\n" +
+            "          \n" +
+            "              <li>\n" +
+            "                <a href=\"mailto:kevin@sookocheff.com\" title=\"Email me\">\n" +
+            "                  <span class=\"fa-stack fa-lg\">\n" +
+            "                    <i class=\"fas fa-circle fa-stack-2x\"></i>\n" +
+            "                    <i class=\"fas fa-envelope fa-stack-1x fa-inverse\"></i>\n" +
+            "                  </span>\n" +
+            "                </a>\n" +
+            "              </li>\n" +
+            "              <li>\n" +
+            "                <a href=\"https://www.facebook.com/soofaloofa\" title=\"Facebook\">\n" +
+            "                  <span class=\"fa-stack fa-lg\">\n" +
+            "                    <i class=\"fas fa-circle fa-stack-2x\"></i>\n" +
+            "                    <i class=\"fab fa-facebook fa-stack-1x fa-inverse\"></i>\n" +
+            "                  </span>\n" +
+            "                </a>\n" +
+            "              </li>\n" +
+            "              <li>\n" +
+            "                <a href=\"https://github.com/soofaloofa\" title=\"GitHub\">\n" +
+            "                  <span class=\"fa-stack fa-lg\">\n" +
+            "                    <i class=\"fas fa-circle fa-stack-2x\"></i>\n" +
+            "                    <i class=\"fab fa-github fa-stack-1x fa-inverse\"></i>\n" +
+            "                  </span>\n" +
+            "                </a>\n" +
+            "              </li>\n" +
+            "              <li>\n" +
+            "                <a href=\"https://twitter.com/soofaloofa\" title=\"Twitter\">\n" +
+            "                  <span class=\"fa-stack fa-lg\">\n" +
+            "                    <i class=\"fas fa-circle fa-stack-2x\"></i>\n" +
+            "                    <i class=\"fab fa-twitter fa-stack-1x fa-inverse\"></i>\n" +
+            "                  </span>\n" +
+            "                </a>\n" +
+            "              </li>\n" +
+            "              <li>\n" +
+            "                <a href=\"https://linkedin.com/in/kevinsookocheff\" title=\"LinkedIn\">\n" +
+            "                  <span class=\"fa-stack fa-lg\">\n" +
+            "                    <i class=\"fas fa-circle fa-stack-2x\"></i>\n" +
+            "                    <i class=\"fab fa-linkedin fa-stack-1x fa-inverse\"></i>\n" +
+            "                  </span>\n" +
+            "                </a>\n" +
+            "              </li>\n" +
+            "              <li>\n" +
+            "                <a href=\"https://paypal.me/paypal.me/soofaloofa\" title=\"PayPal\">\n" +
+            "                  <span class=\"fa-stack fa-lg\">\n" +
+            "                    <i class=\"fas fa-circle fa-stack-2x\"></i>\n" +
+            "                    <i class=\"fab fa-paypal fa-stack-1x fa-inverse\"></i>\n" +
+            "                  </span>\n" +
+            "                </a>\n" +
+            "              </li>\n" +
+            "          \n" +
+            "          <li>\n" +
+            "            <a href=\"\" title=\"RSS\">\n" +
+            "              <span class=\"fa-stack fa-lg\">\n" +
+            "                <i class=\"fas fa-circle fa-stack-2x\"></i>\n" +
+            "                <i class=\"fas fa-rss fa-stack-1x fa-inverse\"></i>\n" +
+            "              </span>\n" +
+            "            </a>\n" +
+            "          </li>\n" +
+            "          \n" +
+            "        </ul>\n" +
+            "        <p class=\"credits copyright text-muted\">\n" +
+            "          \n" +
+            "            \n" +
+            "              Kevin Sookocheff\n" +
+            "            \n" +
+            "          \n" +
+            "\n" +
+            "          &nbsp;•&nbsp;©\n" +
+            "          \n" +
+            "            2020\n" +
+            "          \n" +
+            "\n" +
+            "          \n" +
+            "            &nbsp;•&nbsp;\n" +
+            "            <a href=\"https://sookocheff.com\">Kevin Sookocheff</a>\n" +
+            "          \n" +
+            "        </p>\n" +
+            "        \n" +
+            "        <p class=\"credits theme-by text-muted\">\n" +
+            "          <a href=\"https://gohugo.io\">Hugo v0.68.2</a> powered &nbsp;•&nbsp; Theme <a href=\"https://github.com/halogenica/beautifulhugo\">Beautiful Hugo</a> adapted from <a href=\"https://deanattali.com/beautiful-jekyll/\">Beautiful Jekyll</a>\n" +
+            "          \n" +
+            "        </p>\n" +
+            "      </div>\n" +
+            "    </div>\n" +
+            "  </div>\n" +
+            "</footer><script src=\"https://sookocheff.com/js/katex.min.js\"></script>\n" +
+            "<script src=\"https://sookocheff.com/js/auto-render.min.js\"></script>\n" +
+            "<script src=\"https://sookocheff.com/js/jquery.min.js\"></script>\n" +
+            "<script src=\"https://sookocheff.com/js/bootstrap.min.js\"></script>\n" +
+            "\n" +
+            "<script src=\"https://sookocheff.com/js/main.js\"></script><script> renderMathInElement(document.body); </script><script src=\"https://sookocheff.com/js/photoswipe.min.js\"></script>\n" +
+            "<script src=\"https://sookocheff.com/js/photoswipe-ui-default.min.js\"></script><script src=\"https://sookocheff.com/js/load-photoswipe.js\"></script>";
+    }
+    let s2="<div><div><ol><li>fuck</li><li><a href='/www/aaa.html'>fuck a</a></li></ol></div></div>"
+
+    let r=await simply2(gets3())
 
 
-// const getS1=function () {
-//     return (
-//         "<div id=\"wrap_all\"><header id=\"header\" class=\"all_colors header_color light_bg_color av_header_top av_logo_left av_main_nav_header av_menu_right av_slim av_header_sticky av_header_shrinking_disabled av_header_stretch_disabled av_mobile_menu_tablet av_header_searchicon av_header_unstick_top av_minimal_header av_bottom_nav_disabled av_header_border_disabled\" role=\"banner\" itemscope=\"itemscope\" itemtype=\"https://schema.org/WPHeader\" style=\"margin-top: 0px;\"><div id=\"header_meta\" class=\"container_wrap container_wrap_meta av_icon_active_left av_extra_header_active av_secondary_right av_entry_id_6033\"><div class=\"container\"><ul class=\"noLightbox social_bookmarks icon_count_4\"><li class=\"social_bookmarks_twitter av-social-link-twitter social_icon_1\"><a target=\"_blank\" aria-label=\"Link to Twitter\" href=\"https://twitter.com/ftomasse\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\" title=\"Twitter\"><span class=\"avia_hidden_link_text\">Twitter</span></a></li><li class=\"social_bookmarks_linkedin av-social-link-linkedin social_icon_2\"><a target=\"_blank\" aria-label=\"Link to Linkedin\" href=\"https://ie.linkedin.com/in/federicotomassetti\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\" title=\"Linkedin\"><span class=\"avia_hidden_link_text\">Linkedin</span></a></li><li class=\"social_bookmarks_mail av-social-link-mail social_icon_3\"><a aria-label=\"Link to Mail\" href=\"mailto:federico@tomassetti.me\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\" title=\"Mail\"><span class=\"avia_hidden_link_text\">Mail</span></a></li><li class=\"social_bookmarks_rss av-social-link-rss social_icon_4\"><a aria-label=\"Link to Rss this site\" href=\"https://tomassetti.me/feed/\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\" title=\"Rss\"><span class=\"avia_hidden_link_text\">Rss</span></a></li></ul></div></div><div id=\"header_main\" class=\"container_wrap container_wrap_logo\"><div class=\"container av-logo-container\" style=\"\"><div class=\"inner-container\"><span class=\"logo\"><a href=\"https://tomassetti.me/\"><img height=\"100\" width=\"300\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/07/federico-tomassetti-software-architect-300.png\" alt=\"Federico Tomassetti - Software Architect\" data-lazy-src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/07/federico-tomassetti-software-architect-300.png\" class=\"lazyloaded\" data-was-processed=\"true\"><noscript><img height='100' width='300' src='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/07/federico-tomassetti-software-architect-300.png' alt='Federico Tomassetti - Software Architect' /></noscript></a></span><nav class=\"main_menu\" data-selectname=\"Select a page\" role=\"navigation\" itemscope=\"itemscope\" itemtype=\"https://schema.org/SiteNavigationElement\"><div class=\"avia-menu av-main-nav-wrap\"><ul id=\"avia-menu\" class=\"menu av-main-nav\"><li id=\"menu-item-4159\" class=\"menu-item menu-item-type-custom menu-item-object-custom menu-item-top-level menu-item-top-level-1\"><a href=\"https://strumenta.com/services/\" itemprop=\"url\" style=\"\"><span class=\"avia-bullet\"></span><span class=\"avia-menu-text\">Services</span><span class=\"avia-menu-fx\"><span class=\"avia-arrow-wrap\"><span class=\"avia-arrow\"></span></span></span></a></li><li id=\"menu-item-4164\" class=\"menu-item menu-item-type-custom menu-item-object-custom menu-item-top-level menu-item-top-level-2\"><a href=\"https://strumenta.com/products\" itemprop=\"url\" style=\"\"><span class=\"avia-bullet\"></span><span class=\"avia-menu-text\">Products</span><span class=\"avia-menu-fx\"><span class=\"avia-arrow-wrap\"><span class=\"avia-arrow\"></span></span></span></a></li><li id=\"menu-item-3277\" class=\"menu-item menu-item-type-post_type menu-item-object-page menu-item-top-level menu-item-top-level-3\"><a href=\"https://tomassetti.me/learning-build-languages/\" itemprop=\"url\" style=\"\"><span class=\"avia-bullet\"></span><span class=\"avia-menu-text\">Learning to build languages</span><span class=\"avia-menu-fx\"><span class=\"avia-arrow-wrap\"><span class=\"avia-arrow\"></span></span></span></a></li><li id=\"menu-item-3276\" class=\"menu-item menu-item-type-post_type menu-item-object-page menu-item-top-level menu-item-top-level-4\"><a href=\"https://tomassetti.me/learning-process-code/\" itemprop=\"url\" style=\"\"><span class=\"avia-bullet\"></span><span class=\"avia-menu-text\">Learning to process code</span><span class=\"avia-menu-fx\"><span class=\"avia-arrow-wrap\"><span class=\"avia-arrow\"></span></span></span></a></li><li id=\"menu-item-3996\" class=\"menu-item menu-item-type-post_type menu-item-object-page menu-item-top-level menu-item-top-level-5\"><a href=\"https://tomassetti.me/antlr-course/\" itemprop=\"url\" style=\"\"><span class=\"avia-bullet\"></span><span class=\"avia-menu-text\">Using ANTLR Like a Professional</span><span class=\"avia-menu-fx\"><span class=\"avia-arrow-wrap\"><span class=\"avia-arrow\"></span></span></span></a></li><li id=\"menu-item-3278\" class=\"menu-item menu-item-type-post_type menu-item-object-page menu-item-top-level menu-item-top-level-6\"><a href=\"https://tomassetti.me/newsletter/\" itemprop=\"url\" style=\"\"><span class=\"avia-bullet\"></span><span class=\"avia-menu-text\">Newsletter</span><span class=\"avia-menu-fx\"><span class=\"avia-arrow-wrap\"><span class=\"avia-arrow\"></span></span></span></a></li><li id=\"menu-item-2572\" class=\"menu-item menu-item-type-post_type menu-item-object-page menu-item-top-level menu-item-top-level-7\"><a href=\"https://tomassetti.me/about-me/\" itemprop=\"url\" style=\"\"><span class=\"avia-bullet\"></span><span class=\"avia-menu-text\">About me</span><span class=\"avia-menu-fx\"><span class=\"avia-arrow-wrap\"><span class=\"avia-arrow\"></span></span></span></a></li><li id=\"menu-item-5959\" class=\"menu-item menu-item-type-custom menu-item-object-custom menu-item-top-level menu-item-top-level-8\"><a href=\"https://strumenta.com/contact-us/\" itemprop=\"url\" style=\"\"><span class=\"avia-bullet\"></span><span class=\"avia-menu-text\">Let’s Talk</span><span class=\"avia-menu-fx\"><span class=\"avia-arrow-wrap\"><span class=\"avia-arrow\"></span></span></span></a></li><li id=\"menu-item-search\" class=\"noMobile menu-item menu-item-search-dropdown menu-item-avia-special\"> <a href=\"?s=\" rel=\"nofollow\" data-avia-search-tooltip=\" <form action=&quot;https://tomassetti.me/&quot; id=&quot;searchform&quot; method=&quot;get&quot; class=&quot;&quot;> <div> <input type=&quot;submit&quot; value=&quot;&quot; id=&quot;searchsubmit&quot; class=&quot;button avia-font-entypo-fontello&quot; /> <input type=&quot;text&quot; id=&quot;s&quot; name=&quot;s&quot; value=&quot;&quot; placeholder='Search' /> </div> </form>\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\" style=\"\"><span class=\"avia_hidden_link_text\">Search</span></a></li><li class=\"av-burger-menu-main menu-item-avia-special \"> <a href=\"#\" style=\"\"> <span class=\"av-hamburger av-hamburger--spin av-js-hamburger\"> <span class=\"av-hamburger-box\"> <span class=\"av-hamburger-inner\"></span> <strong>Menu</strong> </span> </span> </a></li></ul></div></nav></div></div></div><div class=\"header_bg\"></div></header><div id=\"main\" class=\"all_colors\" data-scroll-offset=\"88\"><div class=\"stretch_full container_wrap alternate_color light_bg_color title_container\"><div class=\"container\"><strong class=\"main-title entry-title \"><a href=\"https://tomassetti.me/blog/\" rel=\"bookmark\" title=\"Permanent Link: Blog\" itemprop=\"headline\">Blog</a></strong></div></div><div class=\"container_wrap container_wrap_first main_color sidebar_right\"><div class=\"container template-blog template-single-blog \"><main class=\"content units av-content-small alpha av-blog-meta-comments-disabled\" role=\"main\" itemscope=\"itemscope\" itemtype=\"https://schema.org/Blog\"><article class=\"post-entry post-entry-type-standard post-entry-6033 post-loop-1 post-parity-odd post-entry-last single-small with-slider post-6033 post type-post status-publish format-standard has-post-thumbnail hentry category-antlr category-static-analysis category-parsing tag-c tag-kotlin tag-sql tag-tools\" itemscope=\"itemscope\" itemtype=\"https://schema.org/BlogPosting\" itemprop=\"blogPost\"><div class=\"entry-content-wrapper clearfix standard-content\"><header class=\"entry-content-header\"><h1 class=\"post-title entry-title \" itemprop=\"headline\"> <a href=\"https://tomassetti.me/parsing-sql/\" rel=\"bookmark\" title=\"Permanent Link: Parsing SQL\">Parsing SQL <span class=\"post-format-icon minor-meta\"></span> </a></h1><span class=\"post-meta-infos\"><time class=\"date-container minor-meta updated\">April 15, 2020</time><span class=\"text-sep text-sep-date\">/</span><span class=\"blog-categories minor-meta\">in <a href=\"https://tomassetti.me/category/language-engineering/antlr/\" rel=\"tag\">ANTLR</a>, <a href=\"https://tomassetti.me/category/static-analysis/\" rel=\"tag\">Code processing</a>, <a href=\"https://tomassetti.me/category/language-engineering/parsing/\" rel=\"tag\">Parsing</a> </span><span class=\"text-sep text-sep-cat\">/</span><span class=\"blog-author minor-meta\">by <span class=\"entry-author-link\"><span class=\"vcard author\"><span class=\"fn\"><a href=\"https://tomassetti.me/author/gtomassetti/\" title=\"Posts by Gabriele Tomassetti\" rel=\"author\">Gabriele Tomassetti</a></span></span></span></span></span></header><div class=\"entry-content\" itemprop=\"text\"><div class=\"ttr_start\"></div><p><em><img class=\"aligncenter size-full wp-image-6066 lazyloaded\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Parsing-SQL.jpg\" alt=\"\" width=\"1024\" height=\"512\" data-lazy-srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Parsing-SQL.jpg 1024w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Parsing-SQL-300x150.jpg 300w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Parsing-SQL-768x384.jpg 768w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Parsing-SQL-705x353.jpg 705w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Parsing-SQL-450x225.jpg 450w\" data-lazy-sizes=\"(max-width: 1024px) 100vw, 1024px\" data-lazy-src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Parsing-SQL.jpg\" sizes=\"(max-width: 1024px) 100vw, 1024px\" srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Parsing-SQL.jpg 1024w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Parsing-SQL-300x150.jpg 300w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Parsing-SQL-768x384.jpg 768w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Parsing-SQL-705x353.jpg 705w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Parsing-SQL-450x225.jpg 450w\" data-was-processed=\"true\"><noscript><img class=\"aligncenter size-full wp-image-6066\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Parsing-SQL.jpg\" alt=\"\" width=\"1024\" height=\"512\" srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Parsing-SQL.jpg 1024w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Parsing-SQL-300x150.jpg 300w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Parsing-SQL-768x384.jpg 768w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Parsing-SQL-705x353.jpg 705w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Parsing-SQL-450x225.jpg 450w\" sizes=\"(max-width: 1024px) 100vw, 1024px\" /></noscript>You can find the code presented in this article in the <a href=\"https://github.com/unosviluppatore/parsing-sql\">companion repository</a></em></p><p>SQL is a language to handle data in a relational database. If you worked with data you have probably worked with SQL.</p><p>It is in the same league of HTML: maybe you never learned it formally but you kinda know how to use it. That is great because <strong>if you know SQL, you know how to handle data</strong>. However, it has limitations and when you hit them your only course of action might be to work with a traditional programming language. This does not necessarily mean migrating away from SQL. You might need to move from one SQL dialect to another one or to analyze the SQL code you use. And to do that, you need to parse SQL, and that is what this article is about.</p><p>What are the limits of SQL? After a while you learn of a couple of issues:</p><ul><li><strong>there is not one SQL</strong>, but many variations of it. The SQLs implemented in SQLite, MySQL, PostgreSQL, etc. are all a bit different</li><li><strong>you cannot do everything related to data in SQL</strong>. In some cases, you need a traditional programming language to work with the data</li></ul><p>These issues became real problems when you need to make big changes. For instance, if you need to change the database used by a large application. It can also be a problem when you need to make transformations that SQL and your database cannot handle them. In that case, you have some transformations done in SQL (and run on the database) and some other in your source code. So you spend a lot of time working on glue code and around the limitations of SQL.</p><p>SQL can also be a constraint, simply for what it lacks: unit testing integrated with your source code and all the other tools that you can use with Java, C#, etc. SQL is an old language and not designed for large scale programming, it is not a language that developers will love. Even worse, they will not be very productive with it. And what happens if your application requires you to verify that something gets executed in a certain way, or to offer some guarantees? It can be a business need or a regulatory requirement. Then you need to parse SQL or to find a way to move from SQL world to your programming language world.</p><p>That is what this article is about: parsing SQL. We are going to see <strong>ready-to-use libraries and tools to parse SQL</strong>, and an example project in which <strong>we will build our own SQL parser</strong>.</p><div class=\"wp-block-group\"><div class=\"wp-block-group__inner-container\"><h2>What is SQL</h2><p><strong>SQL (Structured Query Language) is a domain-specific language designed to handle data in relational database</strong>. It is a declarative language, so you describe what you want to achieve (e.g., <em>get me a row of data with id=5</em>) and not how to achieve it (e.g. <em>loop through the rows until id=5</em>). It has a formal mathematical foundation in relational algebra and calculus. The language is an ISO/IEC standard that is periodically updated, the latest version is <a href=\"https://en.wikipedia.org/wiki/SQL:2016\">SQL2016</a>. This means that there is a very formal and clear description of the language if you need it.</p><p>SQL is designed to handle many aspects of the life cycle of working with data: yes, you can query data, but you can also create the format of data (i.e., the schema of a table) and regulate access control to the data.</p><h3>SQL Procedural Extensions</h3><p>Actual SQL implementation comes with procedural extensions that implement some form of procedural programming. These are even more varied from database engine to database engine. They were added to perform complex elaborations on the data directly on the database, so they can be as powerful as traditional programming languages. And this can also be an additional headache if you try to parse SQL. See, for instance, this is a PL/SQL (the procedural SQL from Oracle databases) example from Wikipedia.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"sql\" data-enlighter-theme=\"\" data-enlighter-highlight=\"\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">DECLARE\n" +
-//         "     var NUMBER;\n" +
-//         " BEGIN\n" +
-//         "      /*N.B. for loop variables in pl/sql are new declarations, with scope only inside the loop */\n" +
-//         "      FOR var IN 0 .. 10 LOOP\n" +
-//         "           DBMS_OUTPUT.PUT_LINE(var);\n" +
-//         "      END LOOP;\n" +
-//         " \n" +
-//         "      IF (var IS NULL) THEN\n" +
-//         "           DBMS_OUTPUT.PUT_LINE('var is null');\n" +
-//         "      ELSE\n" +
-//         "           DBMS_OUTPUT.PUT_LINE('var is not null');\n" +
-//         "      END IF;\n" +
-//         " END;</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"kw1\">DECLARE</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">    var NUMBER;</span></li><li class=\" odd\"><span class=\"\"></span><span class=\"kw1\">BEGIN</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">     </span><span class=\"co2\">/*N.B. for loop variables in pl/sql are new declarations, with scope only inside the loop */</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">     </span><span class=\"kw1\">FOR</span><span class=\"\"> var </span><span class=\"kw3\">IN</span><span class=\"\"> </span><span class=\"nu0\">0</span><span class=\"\"> .. </span><span class=\"nu0\">10</span><span class=\"\"> LOOP</span></li><li class=\" even\"><span class=\"\">          DBMS_OUTPUT.PUT_LINE(var);</span></li><li class=\" odd\"><span class=\"\">     </span><span class=\"kw1\">END</span><span class=\"\"> LOOP;</span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">     </span><span class=\"kw3\">IF</span><span class=\"\"> (var </span><span class=\"kw1\">IS</span><span class=\"\"> </span><span class=\"kw3\">NULL</span><span class=\"\">) </span><span class=\"kw1\">THEN</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">          DBMS_OUTPUT.PUT_LINE(</span><span class=\"st0\">'var is null'</span><span class=\"\">);</span></li><li class=\" odd\"><span class=\"\">     </span><span class=\"kw1\">ELSE</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">          DBMS_OUTPUT.PUT_LINE(</span><span class=\"st0\">'var is not null'</span><span class=\"\">);</span></li><li class=\" odd\"><span class=\"\">     </span><span class=\"kw1\">END</span><span class=\"\"> </span><span class=\"kw3\">IF</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\"></span><span class=\"kw1\">END</span><span class=\"\">;</span></li></ol><pre style=\"display: none;\">DECLARE\n" +
-//         "     var NUMBER;\n" +
-//         " BEGIN\n" +
-//         "      /*N.B. for loop variables in pl/sql are new declarations, with scope only inside the loop */\n" +
-//         "      FOR var IN 0 .. 10 LOOP\n" +
-//         "           DBMS_OUTPUT.PUT_LINE(var);\n" +
-//         "      END LOOP;\n" +
-//         " \n" +
-//         "      IF (var IS NULL) THEN\n" +
-//         "           DBMS_OUTPUT.PUT_LINE('var is null');\n" +
-//         "      ELSE\n" +
-//         "           DBMS_OUTPUT.PUT_LINE('var is not null');\n" +
-//         "      END IF;\n" +
-//         " END;</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div></div></div><div class=\"wp-block-group\"><div class=\"wp-block-group__inner-container\"><h2>Resources</h2><p>As we have seen handling SQL can be a daunting task, so let’s see a few resources to help you. They range from grammars to kick start your parsing efforts, to ready-to-use tools.</p><h3>Knowledge</h3><h4>Official Sources</h4><p>The latest official SQL standard is formally known as ISO/IEC 9075 SQL:2016. You can find every information you need about it in the official sources either the <a href=\"https://www.iso.org/standard/63555.html\">ISO</a> or <a href=\"https://webstore.iec.ch/publication/59678\">IEC</a> websites. However, keep in mind that there are several documents describing the standard and you have to pay for each of them. This means, depending on the exchange rate, the total cost could be more than 2,000 USD.</p><h4>Official References from Database Documentation</h4><p>Other than the official SQL standard, you can look up the official documentation of the database producers, which contains a reference for their SQL implementation. Here is a list of the few major ones:</p><ul><li><a href=\"https://www.oracle.com/database/technologies/appdev/plsql.html\">Oracle PL/SQL Documentation</a></li><li><a href=\"https://dev.mysql.com/doc/refman/8.0/en/sql-statements.html\">MySQL 8 SQL Reference</a></li><li><a href=\"https://docs.microsoft.com/it-it/sql/t-sql/language-reference?view=sql-server-ver15\">Microsoft Transact-SQL Reference</a></li><li><a href=\"https://www.postgresql.org/docs/12/sql.html\">PostgreSQL 12 SQL Language</a></li><li><a href=\"https://www.ibm.com/support/knowledgecenter/SSEPGG_11.5.0/com.ibm.db2.luw.sql.ref.doc/doc/c0004100.html\">IBM DB2 SQL</a></li><li><a href=\"https://www.sqlite.org/lang.html\">SQL as understood by SQLite</a></li></ul><h4>Grammars</h4><p>There are a few (usually partial) grammars available in different formats. They can be a good starting point for getting where you need.</p><ul><li><a href=\"https://github.com/ronsavage/SQL\">BNF Grammars for SQL-92, SQL-99 and SQL-2003 </a></li><li>Partial <a href=\"https://github.com/cmedved/Teradata-SQL-Parser\">Teradata SQL grammar for ANTLR4</a></li><li>The ANTLR v4 Grammars repository contains grammars for <a href=\"https://github.com/antlr/grammars-v4/tree/master/sql\">MySQL, PL/SQL, T-SQL and SQLite</a>. In our <a href=\"https://tomassetti.me/antlr-course/\">ANTLR Course</a> we analyze the SQLite grammar to explain its structure and how you can parse a declarative language like SQL.</li></ul><h3>Libraries</h3><p>There are many libraries to parse SQL in different languages. Some support different databases and different programming languages. Here it is a list of the most used ones. Unless otherwise noted, the libraries are released under an opensource license.</p><h4>Multi-lingual and/or multi-databases</h4><ul><li><strong><a href=\"http://www.sqlparser.com/index.php\">General SQL Parser</a></strong> is a commercial library that supports many databases (DB2, Greenplum, Hana, Hive, Impala, Informix, MySQL, Netezza, Oracle, PostgreSQL, Redshift SQL Server, Sybase, and Teradata) and languages (<strong>C#, VB.NET, Java, C/C++, Delphi, VB</strong>). It can validate SQL syntax, format SQL and work with the parse tree</li><li><em><a href=\"https://github.com/JSQLParser/JSqlParser\">JSqlParser</a> parses an SQL statement and translates it into a hierarchy of <strong>Java</strong> classes</em>. It is opensource, with a double LGPL and Apache license, and supports many databases: Oracle, SqlServer, MySQL, PostgreSQL, etc.</li></ul><h4>MySQL parsers</h4><ul><li><a href=\"https://github.com/pingcap/parser\">Pingcap parser</a> is a MySQL parser in <strong>Go</strong>.</li><li><a href=\"https://github.com/xwb1989/sqlparser\">xwb1989/sqlparser</a> is a MySQL parser for <strong>Go</strong>. This parser has been extracted from <a href=\"https://github.com/vitessio/vitess\">Vitess</a>, a database clustering system for horizontal scaling of MySQL.</li><li><a href=\"https://github.com/greenlion/PHP-SQL-Parser\">PHP SQL Parser</a> is a (mainly) MySQL (non-validating) parser written in <strong>PHP</strong>. It can parse other SQL dialects with some modifications. It fully supports parsing the <a href=\"https://github.com/greenlion/PHP-SQL-Parser#full-support-for-the-mysql-dialect-for-the-following-statement-types\">most used SQL statements</a>, but it just returns some information on other statements.</li><li>The <a href=\"https://github.com/phpmyadmin/sql-parser\">SQL Parser of <strong>phpmyadmin</strong></a> is <em>a validating SQL lexer and parser with a focus on MySQL dialect</em>. Given its use in PHPMyAdmin, it is certainly well tested.</li><li><strong><a href=\"https://github.com/JavaScriptor/js-sql-parser\">js-sql-parser</a></strong> is SQL (only select) parser for JavaScript that parses the MySQL 5.7 version of SQL into an AST.</li></ul><h4>SQLite Parsers</h4><ul><li><a href=\"https://github.com/codeschool/sqlite-parser\">sqlite-parser</a> is a parser for SQLite v3 written in <strong>JavaScript</strong> that generates ASTs.</li></ul><h4>SQL Parsers</h4><ul><li><a href=\"https://github.com/forward/sql-parser\">sql-parser</a> is a parser for SQL written in pure <strong>JavaScript</strong>. It is not maintained anymore and it only supports some SELECT queries, but it is probably better than starting from scratch if you need to use JavaScript.</li><li><a href=\"https://github.com/hyrise/sql-parser\">hyrise/sql-parser</a> is a SQL parser for <strong>C++</strong>. It parses the given SQL query into C++ objects. It is developed together with Hyrise, an in-memory database, but it can be used on its own.</li><li><a href=\"https://github.com/andialbrecht/sqlparse\">andialbrecht/<em>sqlparse</em></a><em> is a non-validating SQL parser for <strong>Python</strong>. It provides support for parsing, splitting and formatting SQL statements. </em></li><li><em><a href=\"https://github.com/K2InformaticsGmbH/sqlparse\">K2InformaticsGmbH/sqlparse</a> is a production-ready SQL parser written in pure Erlang</em>. It targets the Oracle PL/SQL dialect.</li><li><strong><a href=\"https://github.com/andygrove/sqlparser-rs\">sqlparser-rs</a></strong> is SQL parser written in <strong>Rust</strong>. It supports the SQL-92, plus some addition for MS-SQL, PostgreSQL, and SQL:2011. The developers say: <em>if you are assessing whether this project will be suitable for your needs, you’ll likely need to experimentally verify whether it supports the subset of SQL that you need</em>.</li><li><strong><a href=\"https://github.com/mozilla/moz-sql-parser\">moz-sql-parser</a></strong> is a peculiar SQL parser in <strong>Python</strong> written by Mozilla. <em>The primary objective of this library is to convert some subset of SQL-92 queries to JSON-izable parse trees</em>.</li><li><a href=\"https://github.com/uber/queryparser\">queryparser</a> is a parser written in <strong>Haskell</strong> for <em>parsing and analysis of <strong>Vertica, Hive, and Presto SQL</strong></em>.</li></ul><h3>Tools</h3><h4>From SQL to a Programming Language or another SQL</h4><ul><li><a href=\"http://www.io64.com/plsql-to-java-migration/\">IO64</a> offers a tool to convert PL/SQL to Java. We have also seen this tool in our previous article <a href=\"https://tomassetti.me/convert-pl-sql-code-to-java/\">Convert PL/SQL code to Java</a></li><li><a href=\"https://www.ispirer.com/\">Ispirer</a> is a company that provides a tool to perform database migration from different SQL dialects to another SQL dialect or a programming language: Ispirer MnMTK. We have seen it in our previous article <a href=\"https://tomassetti.me/convert-pl-sql-code-to-java/\">Convert PL/SQL code to Java</a></li><li><a href=\"http://SQLines SQL Converter\">SQLines SQL Converter</a> is an open-source tool to convert a SQL dialect to a different SQL dialect. It is written in C++ and implements its own SQL parser.</li></ul></div></div><h2>How Hard Could it be to Parse a Declarative Language?</h2><p>Declarative languages tend to have simpler structures than your average programming language. For instance, you do not see many nested lambdas used inside declarative languages. A program in a declarative language is usually a long list of simple statements. <strong>The issue is that any single statement can be fairly complicated in some cases</strong>. And that is what happens in SQL.</p><p>Furthermore, there are actually several versions of SQL. This is true both in the sense that each database can implement it differently, and that there are <a href=\"https://en.wikipedia.org/wiki/ISO/IEC_9075\">many versions of the SQL standard</a>&nbsp;because the language is evolving.</p><p>As an example, you are certainly familiar with a SELECT statement. In its basic format, like <code>SELECT name FROM customers WHERE id = 1</code> it is quite easy to parse. However, the complete statement can be fairly complex. This image represents the SELECT statement as implemented in SQLite.</p><figure class=\"wp-block-image size-large\"><img class=\"wp-image-6048\" src=\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%200%200'%3E%3C/svg%3E\" alt=\"\" data-lazy-srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/SQLite_select.png 623w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/SQLite_select-212x300.png 212w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/SQLite_select-499x705.png 499w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/SQLite_select-450x636.png 450w\" data-lazy-sizes=\"(max-width: 623px) 100vw, 623px\" data-lazy-src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/SQLite_select.png\"><noscript><img class=\"wp-image-6048\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/SQLite_select.png\" alt=\"\" srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/SQLite_select.png 623w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/SQLite_select-212x300.png 212w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/SQLite_select-499x705.png 499w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/SQLite_select-450x636.png 450w\" sizes=\"(max-width: 623px) 100vw, 623px\" /></noscript></figure><p>So, to implement support for parsing the general case will certainly take some time.</p><h2>Try to Parse for Your Application</h2><p><strong>The reality is that to implement support for parsing the whole SQL requires a lot of effort</strong>, probably as much as parsing any average programming language. Even more, if you need to parse many different SQL dialects. Then, if you need to parse SQL and cannot rely on a ready-to-use library, you should start with an analysis of your needs. You should try to understand first exactly what you need to parse and then try to parse in light of your application. This means both to parse just what you need and to structure the grammar in a way that makes your life easier.</p><p>For instance, if you just need to translate a series of SQL files just once, it may be acceptable to just ignore 40 complex statements. Maybe translating them manually would take less time than creating a large grammar to do it automatically. This does not work if you either have a lot of code or you need to do the translation repeatedly, not just once.</p><p>In this tutorial we are going to use this pragmatic approach: we are going to create a SQL grammar from scratch to parse just what we need and to ignore the rest.</p><h2>Writing a (Very Partial) Grammar</h2><p>In our example, we will parse a simple SQL file (an exported database) to generate classes that could represent that database. We are going to ignore everything else, even any exported data present in the file. That’s it. The advantage of dealing with SQL files is that we do not need to interact with a database. In fact, the database might not even exist anymore.</p><h3>Designing a Partial Grammar</h3><p>To do that we are going to start with a grammar. We are going to write a very simple one, but there are a couple of things to keep in mind:</p><ul><li>SQL is not case-sensitive, while ANTLR grammars by default are</li><li>Our input (the SQL files) will contain some data that we do not care about. We still need to parse the file successfully while ignoring the extraneous input</li></ul><p>These are notable issues that are specific to SQL and to our approach; they would not probably appear with other languages or if we wanted to create a complete grammar.</p><p>Before starting, just to give you an idea of what we have to deal with, this is a sample SQL file.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"sql\" data-enlighter-theme=\"\" data-enlighter-highlight=\"\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">--\n" +
-//         " -- Table structure for table actor\n" +
-//         " --\n" +
-//         " --DROP TABLE actor;\n" +
-//         " \n" +
-//         " CREATE TABLE actor (\n" +
-//         "   actor_id numeric NOT NULL ,\n" +
-//         "   first_name VARCHAR(45) NOT NULL,\n" +
-//         "   last_name VARCHAR(45) NOT NULL,\n" +
-//         "   last_update TIMESTAMP NOT NULL,\n" +
-//         "   PRIMARY KEY  (actor_id)\n" +
-//         "   )\n" +
-//         "   ;\n" +
-//         " \n" +
-//         " CREATE  INDEX idx_actor_last_name ON actor(last_name)\n" +
-//         " ;\n" +
-//         "  \n" +
-//         " CREATE TRIGGER actor_trigger_ai AFTER INSERT ON actor\n" +
-//         "  BEGIN\n" +
-//         "   UPDATE actor SET last_update = DATETIME('NOW')  WHERE rowid = new.rowid;\n" +
-//         "  END\n" +
-//         " ;</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"\">--</span></li><li class=\" even\"><span class=\"\">--</span><span class=\"co1\"> Table structure for table actor</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">--</span></li><li class=\" even\"><span class=\"\">--</span><span class=\"kw1\">DROP</span><span class=\"\"> </span><span class=\"kw1\">TABLE</span><span class=\"\"> actor;</span></li><li class=\" odd\"><span class=\"\"></span></li><li class=\" even\"><span class=\"\"></span><span class=\"kw1\">CREATE</span><span class=\"\"> </span><span class=\"kw1\">TABLE</span><span class=\"\"> actor (</span></li><li class=\" odd\"><span class=\"\">  actor_id </span><span class=\"kw1\">numeric</span><span class=\"\"> </span><span class=\"kw3\">NOT</span><span class=\"\"> </span><span class=\"kw3\">NULL</span><span class=\"\"> ,</span></li><li class=\" even\"><span class=\"\">  first_name </span><span class=\"kw1\">VARCHAR</span><span class=\"\">(</span><span class=\"nu0\">45</span><span class=\"\">) </span><span class=\"kw3\">NOT</span><span class=\"\"> </span><span class=\"kw3\">NULL</span><span class=\"\">,</span></li><li class=\" odd\"><span class=\"\">  last_name </span><span class=\"kw1\">VARCHAR</span><span class=\"\">(</span><span class=\"nu0\">45</span><span class=\"\">) </span><span class=\"kw3\">NOT</span><span class=\"\"> </span><span class=\"kw3\">NULL</span><span class=\"\">,</span></li><li class=\" even\"><span class=\"\">  last_update </span><span class=\"kw1\">TIMESTAMP</span><span class=\"\"> </span><span class=\"kw3\">NOT</span><span class=\"\"> </span><span class=\"kw3\">NULL</span><span class=\"\">,</span></li><li class=\" odd\"><span class=\"\">  </span><span class=\"kw1\">PRIMARY</span><span class=\"\"> </span><span class=\"kw1\">KEY</span><span class=\"\">  (actor_id)</span></li><li class=\" even\"><span class=\"\">  )</span></li><li class=\" odd\"><span class=\"\">  ;</span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\"></span><span class=\"kw1\">CREATE</span><span class=\"\">  </span><span class=\"kw1\">INDEX</span><span class=\"\"> idx_actor_last_name </span><span class=\"kw1\">ON</span><span class=\"\"> actor(last_name)</span></li><li class=\" even\"><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\"> </span></li><li class=\" even\"><span class=\"\"></span><span class=\"kw1\">CREATE</span><span class=\"\"> </span><span class=\"kw1\">TRIGGER</span><span class=\"\"> actor_trigger_ai </span><span class=\"kw1\">AFTER</span><span class=\"\"> </span><span class=\"kw1\">INSERT</span><span class=\"\"> </span><span class=\"kw1\">ON</span><span class=\"\"> actor</span></li><li class=\" odd\"><span class=\"\"> </span><span class=\"kw1\">BEGIN</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">  </span><span class=\"kw1\">UPDATE</span><span class=\"\"> actor </span><span class=\"kw1\">SET</span><span class=\"\"> last_update = DATETIME(</span><span class=\"st0\">'NOW'</span><span class=\"\">)  </span><span class=\"kw1\">WHERE</span><span class=\"\"> rowid = new.rowid;</span></li><li class=\" odd\"><span class=\"\"> </span><span class=\"kw1\">END</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">;</span></li></ol><pre style=\"display: none;\">--\n" +
-//         " -- Table structure for table actor\n" +
-//         " --\n" +
-//         " --DROP TABLE actor;\n" +
-//         " \n" +
-//         " CREATE TABLE actor (\n" +
-//         "   actor_id numeric NOT NULL ,\n" +
-//         "   first_name VARCHAR(45) NOT NULL,\n" +
-//         "   last_name VARCHAR(45) NOT NULL,\n" +
-//         "   last_update TIMESTAMP NOT NULL,\n" +
-//         "   PRIMARY KEY  (actor_id)\n" +
-//         "   )\n" +
-//         "   ;\n" +
-//         " \n" +
-//         " CREATE  INDEX idx_actor_last_name ON actor(last_name)\n" +
-//         " ;\n" +
-//         "  \n" +
-//         " CREATE TRIGGER actor_trigger_ai AFTER INSERT ON actor\n" +
-//         "  BEGIN\n" +
-//         "   UPDATE actor SET last_update = DATETIME('NOW')  WHERE rowid = new.rowid;\n" +
-//         "  END\n" +
-//         " ;</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p>As you can see at a first glance, we need to parse CREATE TABLE statements and ignore the other ones. We also need to ignore some parts of the CREATE TABLE statements, because they do not contain any information we care about for our task.</p><h3>How to Ignore Stuff</h3><p><strong>The key to design a partial grammar is understanding how to ignore everything except for what we care about</strong>. This is not trivial because we have two conflicting needs: to ignore or drop most information and to keep all the necessary context to parse what we need. The more we ignore, the hardest is to parse what we need. This is tricky particularly for lexing since the lexer has less information available to make a decision.</p><p>For instance, we cannot just say ignore anything until we find a <code>CREATE</code> token. That is because the lexer would still find tokens for the elements in row definition, like the ones for naming the columns (e.g. <code>last_name</code>) in INSERT statements or CREATE INDEX. One possible way to deal with this would be lexical modes. These are a way to include multiple sets of lexer rules and switch between them. See our <a href=\"https://tomassetti.me/antlr-mega-tutorial/#lexical-modes\">ANTLR Mega Tutorial</a>, if you need to know more.</p><p>Essentially we would treat SQL as if it were a markup language: bits of structured information in a sea of free text that we could ignore. This could work in our case because SQL has a regular structure and we are just interested in CREATE TABLE statements. For regular structure, we mean that a SQL file is just a list of statements, each of them ends with a semicolon. So, we could just make a <code>CREATE TABLE</code> token to start the special lexical mode and use the <code>semicolon</code> to end the special lexical mode. However, it is not flexible, so it would be risky in case we need to use our grammar for something else.</p><h4>The Cognizant Way of Ignoring Stuff</h4><p>Our preferred approach is more flexible, and can also be used for regular programming languages.</p><p>On the lexer side, we just put as the last lexer rule this ANY rule.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"generic\" data-enlighter-theme=\"\" data-enlighter-highlight=\"\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">ANY             : . -&gt; skip;</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"\">ANY             : . -&gt; skip;</span></li></ol><pre style=\"display: none;\">ANY             : . -&gt; skip;</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p>We skip every character, that was not already recognized by some previous token.</p><p>On the parser side, these would be our main rules.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"generic\" data-enlighter-theme=\"\" data-enlighter-highlight=\"\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">statements          : (statement | ignore)+ EOF\n" +
-//         "                     ;\n" +
-//         " \n" +
-//         " statement           : createStmt\n" +
-//         "                     ;\n" +
-//         " \n" +
-//         " ignore              : .*? SEMICOLON\n" +
-//         "                     | COMMENT\n" +
-//         "                     ;</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"\">statements          : </span><span class=\"br0\">(</span><span class=\"\">statement | ignore</span><span class=\"br0\">)</span><span class=\"\">+ EOF</span></li><li class=\" even\"><span class=\"\">                    ;</span></li><li class=\" odd\"><span class=\"\"></span></li><li class=\" even\"><span class=\"\">statement           : createStmt</span></li><li class=\" odd\"><span class=\"\">                    ;</span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">ignore              : .*? SEMICOLON</span></li><li class=\" even\"><span class=\"\">                    | COMMENT</span></li><li class=\" odd\"><span class=\"\">                    ;</span></li></ol><pre style=\"display: none;\">statements          : (statement | ignore)+ EOF\n" +
-//         "                     ;\n" +
-//         " \n" +
-//         " statement           : createStmt\n" +
-//         "                     ;\n" +
-//         " \n" +
-//         " ignore              : .*? SEMICOLON\n" +
-//         "                     | COMMENT\n" +
-//         "                     ;</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p>The main rule is <code>statements</code>, which captures both the stuff we care about and the stuff to ignore. This approach allows us to start using our grammar while we build it. For this example, we only need to parse CREATE TABLE statements, but you could slowly add support for parsing more statements with this structure.</p><p>We need the <code>ignore</code> rule to maintain an understanding of the structure of the SQL file. <strong>Without this rule, we would not be able to recognize and parse the statements we are interested in</strong>. The negative side-effect is that it will clutter our parse tree with <em>ignore</em> nodes. For instance, this is a graphical representation of a sample parse tree made with <code>grun</code>, the ANTLR testing utility.</p><figure class=\"wp-block-image size-large\"><img class=\"wp-image-6052\" src=\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%200%200'%3E%3C/svg%3E\" alt=\"Sample parse tree with a partial SQL grammar\" data-lazy-srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar-1030x772.png 1030w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar-300x225.png 300w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar-768x576.png 768w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar-1536x1151.png 1536w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar-1500x1124.png 1500w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar-705x528.png 705w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar-450x337.png 450w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar-205x155.png 205w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar.png 1628w\" data-lazy-sizes=\"(max-width: 1030px) 100vw, 1030px\" data-lazy-src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar-1030x772.png\"><noscript><img class=\"wp-image-6052\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar-1030x772.png\" alt=\"Sample parse tree with a partial SQL grammar\" srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar-1030x772.png 1030w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar-300x225.png 300w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar-768x576.png 768w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar-1536x1151.png 1536w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar-1500x1124.png 1500w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar-705x528.png 705w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar-450x337.png 450w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar-205x155.png 205w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/sample_parse_tree_sql_partial_grammar.png 1628w\" sizes=\"(max-width: 1030px) 100vw, 1030px\" /></noscript></figure><h3>Parsing Create Statements</h3><p>We use a similar approach to parsing the CREATE TABLE statements.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"generic\" data-enlighter-theme=\"\" data-enlighter-highlight=\"\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">createStmt          : CREATE TABLE (IF NOT EXISTS)? tableName=name\n" +
-//         "                         LPAREN element (COMMA element)* RPAREN?\n" +
-//         "                         SEMICOLON\n" +
-//         "                     ;\n" +
-//         " \n" +
-//         " element             : definition\n" +
-//         "                     | ignorable\n" +
-//         "                     ;\n" +
-//         " \n" +
-//         " ignorable           : (PRIMARY? KEY | CONSTRAINT | SPECIAL_FEATURES | FULLTEXT) .*? (COMMA|RPAREN)                    \n" +
-//         "                     ;\n" +
-//         " \n" +
-//         " definition          : name type defaultValue? nullability? attributes*;</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"\">createStmt          : CREATE </span><span class=\"kw1\">TABLE</span><span class=\"\"> </span><span class=\"br0\">(</span><span class=\"\">IF NOT EXISTS</span><span class=\"br0\">)</span><span class=\"\">? tableName=name</span></li><li class=\" even\"><span class=\"\">                        LPAREN </span><span class=\"kw1\">element</span><span class=\"\"> </span><span class=\"br0\">(</span><span class=\"\">COMMA element</span><span class=\"br0\">)</span><span class=\"\">* RPAREN?</span></li><li class=\" odd\"><span class=\"\">                        SEMICOLON</span></li><li class=\" even\"><span class=\"\">                    ;</span></li><li class=\" odd\"><span class=\"\"></span></li><li class=\" even\"><span class=\"\">element             : definition</span></li><li class=\" odd\"><span class=\"\">                    | ignorable</span></li><li class=\" even\"><span class=\"\">                    ;</span></li><li class=\" odd\"><span class=\"\"></span></li><li class=\" even\"><span class=\"\">ignorable           : </span><span class=\"br0\">(</span><span class=\"\">PRIMARY? KEY | CONSTRAINT | SPECIAL_FEATURES | FULLTEXT</span><span class=\"br0\">)</span><span class=\"\"> .*? </span><span class=\"br0\">(</span><span class=\"\">COMMA|RPAREN</span><span class=\"br0\">)</span><span class=\"\">                    </span></li><li class=\" odd\"><span class=\"\">                    ;</span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">definition          : name type defaultValue? nullability? attributes*;</span></li></ol><pre style=\"display: none;\">createStmt          : CREATE TABLE (IF NOT EXISTS)? tableName=name\n" +
-//         "                         LPAREN element (COMMA element)* RPAREN?\n" +
-//         "                         SEMICOLON\n" +
-//         "                     ;\n" +
-//         " \n" +
-//         " element             : definition\n" +
-//         "                     | ignorable\n" +
-//         "                     ;\n" +
-//         " \n" +
-//         " ignorable           : (PRIMARY? KEY | CONSTRAINT | SPECIAL_FEATURES | FULLTEXT) .*? (COMMA|RPAREN)                    \n" +
-//         "                     ;\n" +
-//         " \n" +
-//         " definition          : name type defaultValue? nullability? attributes*;</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p>The statement includes both definitions of columns, that we need, and settings for the table, that we could ignore. So, our <code>element</code> rule can accept both the definition for a row and the information about primary keys, constraints, etc. Later, in our code, we will simply ignore both the nodes <code>ignore</code> and <code>ignorable</code>.</p><p>The rules themselves are fairly easy to understand and should be obvious for everybody that has seen SQL. There is only a dirty trick that needs to be explained. You can see that the closing parenthesis (<code>RPAREN</code>) that should be at the end of the list of column definitions is optional. Technically this is not correct, it should always be there. However, we use this to fix an issue regarding the <code>ignorable</code> rule.</p><h4>Getting Around the Need to Actually Parse Settings</h4><p>The issue is that the <code>ignorable</code> rule is only a partial implementation of the parsing of these settings that you will find in a SQL file. In fact, this is the bare minimum necessary to parse correctly a bunch of sample SQL files we encountered. It is not a good design, but this is a very realistic implementation. Look at this example and see if you can spot our problem.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"generic\" data-enlighter-theme=\"\" data-enlighter-highlight=\"\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">CREATE TABLE city (\n" +
-//         "   city_id int NOT NULL,\n" +
-//         "   city VARCHAR(50) NOT NULL,\n" +
-//         "   country_id SMALLINT NOT NULL,\n" +
-//         "   last_update TIMESTAMP NOT NULL,\n" +
-//         "   PRIMARY KEY  (city_id),\n" +
-//         "   CONSTRAINT fk_city_country FOREIGN KEY (country_id) REFERENCES country (country_id) ON DELETE NO ACTION ON UPDATE CASCADE\n" +
-//         " );</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"\">CREATE TABLE </span><span class=\"kw1\">city</span><span class=\"\"> </span><span class=\"br0\">(</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">  city_id int NOT NULL,</span></li><li class=\" odd\"><span class=\"\">  city </span><span class=\"kw1\">VARCHAR</span><span class=\"br0\">(</span><span class=\"nu0\">50</span><span class=\"br0\">)</span><span class=\"\"> NOT NULL,</span></li><li class=\" even\"><span class=\"\">  country_id SMALLINT NOT NULL,</span></li><li class=\" odd\"><span class=\"\">  last_update TIMESTAMP NOT NULL,</span></li><li class=\" even\"><span class=\"\">  PRIMARY </span><span class=\"kw1\">KEY</span><span class=\"\">  </span><span class=\"br0\">(</span><span class=\"\">city_id</span><span class=\"br0\">)</span><span class=\"\">,</span></li><li class=\" odd\"><span class=\"\">  CONSTRAINT fk_city_country FOREIGN </span><span class=\"kw1\">KEY</span><span class=\"\"> </span><span class=\"br0\">(</span><span class=\"\">country_id</span><span class=\"br0\">)</span><span class=\"\"> REFERENCES </span><span class=\"kw1\">country</span><span class=\"\"> </span><span class=\"br0\">(</span><span class=\"\">country_id</span><span class=\"br0\">)</span><span class=\"\"> ON DELETE NO ACTION ON UPDATE CASCADE</span></li><li class=\" even\"><span class=\"\"></span><span class=\"br0\">)</span><span class=\"\">;</span></li></ol><pre style=\"display: none;\">CREATE TABLE city (\n" +
-//         "   city_id int NOT NULL,\n" +
-//         "   city VARCHAR(50) NOT NULL,\n" +
-//         "   country_id SMALLINT NOT NULL,\n" +
-//         "   last_update TIMESTAMP NOT NULL,\n" +
-//         "   PRIMARY KEY  (city_id),\n" +
-//         "   CONSTRAINT fk_city_country FOREIGN KEY (country_id) REFERENCES country (country_id) ON DELETE NO ACTION ON UPDATE CASCADE\n" +
-//         " );</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p><strong>This partial implementation has the issue that it does not parse well enough to understand when it found the end of a setting</strong>. So, it uses as a clue the comma (i.e., the start of a new setting) or the final closing parenthesis (i.e., the end of the list of elements) for the final setting.</p><p>Now, how safe is it to use this dirty trick? In this case, it is safe because SQL files are not written by humans, they are exported with tools. This means that there will not be missing parenthesis that will mess up the recognition of subsequent statements. So, we actually can be sure that every CREATE TABLE will end with a closing parenthesis and a semicolon. This may vary with different languages, different sources of SQL statements or different databases.</p><p>When you need to only partially implement a grammar these sorts of tricks can be quite helpful to speed up development and get your task done quicker. You have to be careful and aware of the risks, but they can be useful.</p><h3>The Rest of the Grammar</h3><p>The rest of the grammar is also fairly simple to understand. We just mention a couple of things.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"generic\" data-enlighter-theme=\"\" data-enlighter-highlight=\"\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">name                : QUOTE? NAME QUOTE? ;</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"\">name                : QUOTE? NAME QUOTE? ;</span></li></ol><pre style=\"display: none;\">name                : QUOTE? NAME QUOTE? ;</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p>The rule <code>name</code> is a parser rule instead of a lexer rule. That is because some tools wrap the name of the column with quotation marks (these are also used as apostrophes in some languages) like <code>`</code> or <code>'</code>. With this definition, later in our code, we can easily extract the real name of the column without any check for quotation marks.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"generic\" data-enlighter-theme=\"\" data-enlighter-highlight=\"\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">type                : (INTEGER | INT) UNSIGNED?                                                     #integerType\n" +
-//         "                     | (TINYINT | SMALLINT) UNSIGNED?                                                #smallIntegerType\n" +
-//         "                     | TEXT                                                                          #textType\n" +
-//         "                     | BLOB (SUBTYPE type)?                                                          #blobType\n" +
-//         "                     | (VARCHAR|CHARVAR) LPAREN NUMBER RPAREN                                        #varcharType\n" +
-//         "                     | CHAR LPAREN NUMBER RPAREN                                                     #charType\n" +
-//         "                     | YEAR                                                                          #yearType\n" +
-//         "                     | DATETIME                                                                      #datetimeType\n" +
-//         "                     | TIMESTAMP TIMEZONE?                                                           #timestampType\n" +
-//         "                     | (NUMERIC | DECIMAL) (LPAREN precision=NUMBER (COMMA scale=NUMBER)? RPAREN)?   #decimalType\n" +
-//         "                     ;</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"\">type                : </span><span class=\"br0\">(</span><span class=\"\">INTEGER | INT</span><span class=\"br0\">)</span><span class=\"\"> UNSIGNED?                                                     </span><span class=\"co1\">#integerType</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">                    | </span><span class=\"br0\">(</span><span class=\"\">TINYINT | SMALLINT</span><span class=\"br0\">)</span><span class=\"\"> UNSIGNED?                                                </span><span class=\"co1\">#smallIntegerType</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">                    | TEXT                                                                          </span><span class=\"co1\">#textType</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">                    | </span><span class=\"kw1\">BLOB</span><span class=\"\"> </span><span class=\"br0\">(</span><span class=\"\">SUBTYPE type</span><span class=\"br0\">)</span><span class=\"\">?                                                          </span><span class=\"co1\">#blobType</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">                    | </span><span class=\"br0\">(</span><span class=\"\">VARCHAR|CHARVAR</span><span class=\"br0\">)</span><span class=\"\"> LPAREN NUMBER RPAREN                                        </span><span class=\"co1\">#varcharType</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">                    | CHAR LPAREN NUMBER RPAREN                                                     </span><span class=\"co1\">#charType</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">                    | YEAR                                                                          </span><span class=\"co1\">#yearType</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">                    | DATETIME                                                                      </span><span class=\"co1\">#datetimeType</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">                    | TIMESTAMP TIMEZONE?                                                           </span><span class=\"co1\">#timestampType</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">                    | </span><span class=\"br0\">(</span><span class=\"\">NUMERIC | DECIMAL</span><span class=\"br0\">)</span><span class=\"\"> </span><span class=\"br0\">(</span><span class=\"\">LPAREN precision=</span><span class=\"kw1\">NUMBER</span><span class=\"\"> </span><span class=\"br0\">(</span><span class=\"\">COMMA scale=NUMBER</span><span class=\"br0\">)</span><span class=\"\">? RPAREN</span><span class=\"br0\">)</span><span class=\"\">?   </span><span class=\"co1\">#decimalType</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">                    ;</span></li></ol><pre style=\"display: none;\">type                : (INTEGER | INT) UNSIGNED?                                                     #integerType\n" +
-//         "                     | (TINYINT | SMALLINT) UNSIGNED?                                                #smallIntegerType\n" +
-//         "                     | TEXT                                                                          #textType\n" +
-//         "                     | BLOB (SUBTYPE type)?                                                          #blobType\n" +
-//         "                     | (VARCHAR|CHARVAR) LPAREN NUMBER RPAREN                                        #varcharType\n" +
-//         "                     | CHAR LPAREN NUMBER RPAREN                                                     #charType\n" +
-//         "                     | YEAR                                                                          #yearType\n" +
-//         "                     | DATETIME                                                                      #datetimeType\n" +
-//         "                     | TIMESTAMP TIMEZONE?                                                           #timestampType\n" +
-//         "                     | (NUMERIC | DECIMAL) (LPAREN precision=NUMBER (COMMA scale=NUMBER)? RPAREN)?   #decimalType\n" +
-//         "                     ;</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p>The rule to parse the type of the column includes rule labels. We designed this way to simplify our job, later in the code where we use the parser. This is also the reason because the VARCHAR rule is separated from the CHAR rule. Structurally the rules are obviously identical, but they mean something different. <strong>Remember: you should parse for your application, to make the parse effective for your needs.</strong></p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"generic\" data-enlighter-theme=\"\" data-enlighter-highlight=\"\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">fragment A      : [aA];\n" +
-//         " fragment B      : [bB];\n" +
-//         " fragment C      : [cC];\n" +
-//         " fragment D      : [dD];\n" +
-//         " fragment E      : [eE];\n" +
-//         " // etc.</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"\">fragment A      : </span><span class=\"br0\">[</span><span class=\"\">aA</span><span class=\"br0\">]</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">fragment B      : </span><span class=\"br0\">[</span><span class=\"\">bB</span><span class=\"br0\">]</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">fragment C      : </span><span class=\"br0\">[</span><span class=\"\">cC</span><span class=\"br0\">]</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">fragment D      : </span><span class=\"br0\">[</span><span class=\"\">dD</span><span class=\"br0\">]</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">fragment E      : </span><span class=\"br0\">[</span><span class=\"\">eE</span><span class=\"br0\">]</span><span class=\"\">;</span><span class=\"co1\"></span></li><li class=\" even\"><span class=\"co1\">// etc.</span></li></ol><pre style=\"display: none;\">fragment A      : [aA];\n" +
-//         " fragment B      : [bB];\n" +
-//         " fragment C      : [cC];\n" +
-//         " fragment D      : [dD];\n" +
-//         " fragment E      : [eE];\n" +
-//         " // etc.</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p>Since SQL is case-insensitive we use fragments for letters everywhere we need, to ensure that we parse everything correctly.</p><p>You can see the rest of the grammar on the companion repository.</p><h2>CREATING THE C# PROJECT</h2><p>We can finally see some code. We are going to create a C# project from the command line since we are using VS Code as our editor. These are the instructions to create the project and to add the ANTLR library.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"shell\" data-enlighter-theme=\"\" data-enlighter-highlight=\"\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">// create a new directory somewhere\n" +
-//         " // to create a new C# project\n" +
-//         " dotnet new console -lang C#\n" +
-//         " // to install the standard ANTLR 4 Runtime\n" +
-//         " dotnet add package Antlr4.Runtime.Standard</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"\">// create a new directory somewhere</span></li><li class=\" even\"><span class=\"\">// to create a new C# project</span></li><li class=\" odd\"><span class=\"\">dotnet new console -lang C#</span></li><li class=\" even\"><span class=\"\">// to install the standard ANTLR 4 Runtime</span></li><li class=\" odd\"><span class=\"\">dotnet add package Antlr4.Runtime.Standard</span></li></ol><pre style=\"display: none;\">// create a new directory somewhere\n" +
-//         " // to create a new C# project\n" +
-//         " dotnet new console -lang C#\n" +
-//         " // to install the standard ANTLR 4 Runtime\n" +
-//         " dotnet add package Antlr4.Runtime.Standard</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p>These are the instructions to generate the parser and to run the program.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"shell\" data-enlighter-theme=\"\" data-enlighter-highlight=\"\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">// to generate the parser\n" +
-//         " antlr4 SQL.g4 -Dlanguage=CSharp -o generated\\ -encoding UTF-8\n" +
-//         " // to run the program\n" +
-//         " dotnet run</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"\">// to generate the parser</span></li><li class=\" even\"><span class=\"\">antlr4 SQL.g4 -Dlanguage=CSharp -o generated\\ -encoding UTF-8</span></li><li class=\" odd\"><span class=\"\">// to run the program</span></li><li class=\" even\"><span class=\"\">dotnet run</span></li></ol><pre style=\"display: none;\">// to generate the parser\n" +
-//         " antlr4 SQL.g4 -Dlanguage=CSharp -o generated\\ -encoding UTF-8\n" +
-//         " // to run the program\n" +
-//         " dotnet run</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p>Even our main source code file is fairly standard.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"csharp\" data-enlighter-theme=\"\" data-enlighter-highlight=\"\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">static void Main(string[] args)\n" +
-//         " {\n" +
-//         "     // standard ANTLR code\n" +
-//         "     // we get the input\n" +
-//         "     ICharStream chars = CharStreams.fromPath(args[0]);\n" +
-//         "     // we set up the lexer\n" +
-//         "     SQLLexer lexer = new SQLLexer(chars);            \n" +
-//         "     // we use the lexer\n" +
-//         "     CommonTokenStream stream = new CommonTokenStream(lexer);\n" +
-//         "     // we set up the parser\n" +
-//         "     SQLParser parser = new SQLParser(stream);\n" +
-//         " \n" +
-//         "     // we find the root node of our parse tree             \n" +
-//         "     var tree = parser.statements();                                    \n" +
-//         "     \n" +
-//         "     // we create our visitor\n" +
-//         "     CreateVisitor createVisitor = new CreateVisitor();   \n" +
-//         "     List&lt;ClassDescriptor&gt; classes = createVisitor.VisitStatements(tree);\n" +
-//         " \n" +
-//         "     // we choose our code generator...\n" +
-//         "     ICodeGenerator generator;\n" +
-//         " \n" +
-//         "     // ...depending on the command line argument\n" +
-//         "     if(args.Count() &gt; 1 &amp;&amp; args[1] == \"kotlin\")\n" +
-//         "         generator = new KotlinCodeGenerator();\n" +
-//         "     else\n" +
-//         "         generator = new CSharpCodeGenerator();\n" +
-//         "     \n" +
-//         "     Console.WriteLine(generator.ToSourceCode(\"SQLDataTypes\", classes));\n" +
-//         " }</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"kw3\">static</span><span class=\"\"> </span><span class=\"kw1\">void</span><span class=\"\"> </span><span class=\"me0\">Main</span><span class=\"br0\">(</span><span class=\"kw2\">string</span><span class=\"br0\">[</span><span class=\"br0\">]</span><span class=\"\"> args</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\"></span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">   </span><span class=\"co1\"> // standard ANTLR code</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">   </span><span class=\"co1\"> // we get the input</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">    ICharStream chars = CharStreams.</span><span class=\"me0\">fromPath</span><span class=\"br0\">(</span><span class=\"\">args</span><span class=\"br0\">[</span><span class=\"nu0\">0</span><span class=\"br0\">]</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">   </span><span class=\"co1\"> // we set up the lexer</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">    SQLLexer lexer = </span><span class=\"kw1\">new</span><span class=\"\"> </span><span class=\"me0\">SQLLexer</span><span class=\"br0\">(</span><span class=\"\">chars</span><span class=\"br0\">)</span><span class=\"\">;            </span></li><li class=\" even\"><span class=\"\">   </span><span class=\"co1\"> // we use the lexer</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">    CommonTokenStream stream = </span><span class=\"kw1\">new</span><span class=\"\"> </span><span class=\"me0\">CommonTokenStream</span><span class=\"br0\">(</span><span class=\"\">lexer</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">   </span><span class=\"co1\"> // we set up the parser</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">    SQLParser parser = </span><span class=\"kw1\">new</span><span class=\"\"> </span><span class=\"me0\">SQLParser</span><span class=\"br0\">(</span><span class=\"\">stream</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">   </span><span class=\"co1\"> // we find the root node of our parse tree             </span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">    var tree = parser.</span><span class=\"me0\">statements</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;                                    </span></li><li class=\" odd\"><span class=\"\">    </span></li><li class=\" even\"><span class=\"\">   </span><span class=\"co1\"> // we create our visitor</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">    CreateVisitor createVisitor = </span><span class=\"kw1\">new</span><span class=\"\"> </span><span class=\"me0\">CreateVisitor</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;   </span></li><li class=\" even\"><span class=\"\">    List&lt;ClassDescriptor&gt; classes = createVisitor.</span><span class=\"me0\">VisitStatements</span><span class=\"br0\">(</span><span class=\"\">tree</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\"></span></li><li class=\" even\"><span class=\"\">   </span><span class=\"co1\"> // we choose our code generator...</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">    ICodeGenerator generator;</span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">   </span><span class=\"co1\"> // ...depending on the command line argument</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">    </span><span class=\"kw1\">if</span><span class=\"br0\">(</span><span class=\"\">args.</span><span class=\"me0\">Count</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\"> &gt; </span><span class=\"nu0\">1</span><span class=\"\"> &amp;&amp; args</span><span class=\"br0\">[</span><span class=\"nu0\">1</span><span class=\"br0\">]</span><span class=\"\"> == </span><span class=\"st1\">\"kotlin\"</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">        generator = </span><span class=\"kw1\">new</span><span class=\"\"> </span><span class=\"me0\">KotlinCodeGenerator</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">    </span><span class=\"kw1\">else</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">        generator = </span><span class=\"kw1\">new</span><span class=\"\"> </span><span class=\"me0\">CSharpCodeGenerator</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">    </span></li><li class=\" odd\"><span class=\"\">    Console.</span><span class=\"me0\">WriteLine</span><span class=\"br0\">(</span><span class=\"\">generator.</span><span class=\"me0\">ToSourceCode</span><span class=\"br0\">(</span><span class=\"st1\">\"SQLDataTypes\"</span><span class=\"\">, classes</span><span class=\"br0\">)</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\"></span><span class=\"br0\">}</span></li></ol><pre style=\"display: none;\">static void Main(string[] args)\n" +
-//         " {\n" +
-//         "     // standard ANTLR code\n" +
-//         "     // we get the input\n" +
-//         "     ICharStream chars = CharStreams.fromPath(args[0]);\n" +
-//         "     // we set up the lexer\n" +
-//         "     SQLLexer lexer = new SQLLexer(chars);            \n" +
-//         "     // we use the lexer\n" +
-//         "     CommonTokenStream stream = new CommonTokenStream(lexer);\n" +
-//         "     // we set up the parser\n" +
-//         "     SQLParser parser = new SQLParser(stream);\n" +
-//         " \n" +
-//         "     // we find the root node of our parse tree             \n" +
-//         "     var tree = parser.statements();                                    \n" +
-//         "     \n" +
-//         "     // we create our visitor\n" +
-//         "     CreateVisitor createVisitor = new CreateVisitor();   \n" +
-//         "     List&lt;ClassDescriptor&gt; classes = createVisitor.VisitStatements(tree);\n" +
-//         " \n" +
-//         "     // we choose our code generator...\n" +
-//         "     ICodeGenerator generator;\n" +
-//         " \n" +
-//         "     // ...depending on the command line argument\n" +
-//         "     if(args.Count() &gt; 1 &amp;&amp; args[1] == \"kotlin\")\n" +
-//         "         generator = new KotlinCodeGenerator();\n" +
-//         "     else\n" +
-//         "         generator = new CSharpCodeGenerator();\n" +
-//         "     \n" +
-//         "     Console.WriteLine(generator.ToSourceCode(\"SQLDataTypes\", classes));\n" +
-//         " }</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p>The comments are self-explanatory. After our standard code to setup ANTLR and parse the input, we employ our <code>CreateVisitor</code>. We use the visitor to visit the create table statements and to generate an internal representation of them. Then we use this representation to generate a source code file in our chosen language. In our example we choose to generate either in Kotlin or C#, to show how easy it can be to work with our SQL data once you parse it.</p><p>This is the simple overall structure; we can now move on the individual parts.</p><h2>Visiting the Statements</h2><p>Let’s start by looking at the general organization of our visitor.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"csharp\" data-enlighter-theme=\"\" data-enlighter-highlight=\"\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">public class CreateVisitor\n" +
-//         " {\n" +
-//         "     public  List&lt;ClassDescriptor&gt; VisitStatements(StatementsContext context)    \n" +
-//         "     {\n" +
-//         "         List&lt;ClassDescriptor&gt; tables = new List&lt;ClassDescriptor&gt;();\n" +
-//         "         \n" +
-//         "         foreach(var statement in context.statement())\n" +
-//         "         {\n" +
-//         "             tables.Add(VisitStmt(statement));\n" +
-//         "         }\n" +
-//         " \n" +
-//         "         return tables;\n" +
-//         "     }\n" +
-//         " \n" +
-//         "     public ClassDescriptor VisitStmt(StatementContext context)\n" +
-//         "     {                      \n" +
-//         "         return VisitCreateStmt(context.createStmt());\n" +
-//         "     }\n" +
-//         " \n" +
-//         "     public ClassDescriptor VisitCreateStmt(CreateStmtContext context)\n" +
-//         "     {\n" +
-//         "         ClassDescriptor table = new ClassDescriptor();\n" +
-//         " \n" +
-//         "         table.Name = context.tableName.NAME().GetText();\n" +
-//         "         table.Fields = new List&lt;FieldDescriptor&gt;();\n" +
-//         " \n" +
-//         "         foreach (var el in context.element())\n" +
-//         "         {\n" +
-//         "             if(el.definition() != null)\n" +
-//         "             {\n" +
-//         "                 table.Fields.Add(VisitDefinition(el.definition()));\n" +
-//         "             }                 \n" +
-//         "         }        \n" +
-//         " \n" +
-//         "         return table;\n" +
-//         "     }\n" +
-//         " \t\n" +
-//         "     [..]</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"kw1\">public</span><span class=\"\"> </span><span class=\"kw3\">class</span><span class=\"\"> CreateVisitor</span></li><li class=\" even\"><span class=\"\"></span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">    </span><span class=\"kw1\">public</span><span class=\"\">  List&lt;ClassDescriptor&gt; </span><span class=\"me0\">VisitStatements</span><span class=\"br0\">(</span><span class=\"\">StatementsContext context</span><span class=\"br0\">)</span><span class=\"\">    </span></li><li class=\" even\"><span class=\"\">    </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">        List&lt;ClassDescriptor&gt; tables = </span><span class=\"kw1\">new</span><span class=\"\"> List&lt;ClassDescriptor&gt;</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">        </span></li><li class=\" odd\"><span class=\"\">        </span><span class=\"kw1\">foreach</span><span class=\"br0\">(</span><span class=\"\">var statement </span><span class=\"kw3\">in</span><span class=\"\"> context.</span><span class=\"me0\">statement</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">        </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">            tables.</span><span class=\"me0\">Add</span><span class=\"br0\">(</span><span class=\"me0\">VisitStmt</span><span class=\"br0\">(</span><span class=\"\">statement</span><span class=\"br0\">)</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">        </span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\"></span></li><li class=\" even\"><span class=\"\">        </span><span class=\"kw1\">return</span><span class=\"\"> tables;</span></li><li class=\" odd\"><span class=\"\">    </span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">    </span><span class=\"kw1\">public</span><span class=\"\"> ClassDescriptor </span><span class=\"me0\">VisitStmt</span><span class=\"br0\">(</span><span class=\"\">StatementContext context</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">    </span><span class=\"br0\">{</span><span class=\"\">                      </span></li><li class=\" odd\"><span class=\"\">        </span><span class=\"kw1\">return</span><span class=\"\"> </span><span class=\"me0\">VisitCreateStmt</span><span class=\"br0\">(</span><span class=\"\">context.</span><span class=\"me0\">createStmt</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">    </span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\"></span></li><li class=\" even\"><span class=\"\">    </span><span class=\"kw1\">public</span><span class=\"\"> ClassDescriptor </span><span class=\"me0\">VisitCreateStmt</span><span class=\"br0\">(</span><span class=\"\">CreateStmtContext context</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">    </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">        ClassDescriptor table = </span><span class=\"kw1\">new</span><span class=\"\"> </span><span class=\"me0\">ClassDescriptor</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\"></span></li><li class=\" even\"><span class=\"\">        table.Name = context.tableName.</span><span class=\"me0\">NAME</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">.</span><span class=\"me0\">GetText</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">        table.Fields = </span><span class=\"kw1\">new</span><span class=\"\"> List&lt;FieldDescriptor&gt;</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">        </span><span class=\"kw1\">foreach</span><span class=\"\"> </span><span class=\"br0\">(</span><span class=\"\">var el </span><span class=\"kw3\">in</span><span class=\"\"> context.</span><span class=\"me0\">element</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">        </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">            </span><span class=\"kw1\">if</span><span class=\"br0\">(</span><span class=\"\">el.</span><span class=\"me0\">definition</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\"> != </span><span class=\"kw1\">null</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">            </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">                table.Fields.</span><span class=\"me0\">Add</span><span class=\"br0\">(</span><span class=\"me0\">VisitDefinition</span><span class=\"br0\">(</span><span class=\"\">el.</span><span class=\"me0\">definition</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"br0\">)</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">            </span><span class=\"br0\">}</span><span class=\"\">                 </span></li><li class=\" odd\"><span class=\"\">        </span><span class=\"br0\">}</span><span class=\"\">        </span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">        </span><span class=\"kw1\">return</span><span class=\"\"> table;</span></li><li class=\" even\"><span class=\"\">    </span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">  </span></li><li class=\" even\"><span class=\"\">    </span><span class=\"br0\">[</span><span class=\"\">..</span><span class=\"br0\">]</span></li></ol><pre style=\"display: none;\">public class CreateVisitor\n" +
-//         " {\n" +
-//         "     public  List&lt;ClassDescriptor&gt; VisitStatements(StatementsContext context)    \n" +
-//         "     {\n" +
-//         "         List&lt;ClassDescriptor&gt; tables = new List&lt;ClassDescriptor&gt;();\n" +
-//         "         \n" +
-//         "         foreach(var statement in context.statement())\n" +
-//         "         {\n" +
-//         "             tables.Add(VisitStmt(statement));\n" +
-//         "         }\n" +
-//         " \n" +
-//         "         return tables;\n" +
-//         "     }\n" +
-//         " \n" +
-//         "     public ClassDescriptor VisitStmt(StatementContext context)\n" +
-//         "     {                      \n" +
-//         "         return VisitCreateStmt(context.createStmt());\n" +
-//         "     }\n" +
-//         " \n" +
-//         "     public ClassDescriptor VisitCreateStmt(CreateStmtContext context)\n" +
-//         "     {\n" +
-//         "         ClassDescriptor table = new ClassDescriptor();\n" +
-//         " \n" +
-//         "         table.Name = context.tableName.NAME().GetText();\n" +
-//         "         table.Fields = new List&lt;FieldDescriptor&gt;();\n" +
-//         " \n" +
-//         "         foreach (var el in context.element())\n" +
-//         "         {\n" +
-//         "             if(el.definition() != null)\n" +
-//         "             {\n" +
-//         "                 table.Fields.Add(VisitDefinition(el.definition()));\n" +
-//         "             }                 \n" +
-//         "         }        \n" +
-//         " \n" +
-//         "         return table;\n" +
-//         "     }\n" +
-//         " \t\n" +
-//         "     [..]</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p>The first thing we notice is that we do not need to use the standard base visitor that can be created for us by ANTLR. Our visitor uses just our code. We do not need to use the base visitor, because of the structure of a SQL file and because we know exactly what we need to visit. We can completely ignore everything that is not a create statement because every statement in our SQL files is a top-level element. It is not like statements in your average programming language, that can be nested inside a code block, function definitions, etc. Also, the structure of create statements is simple, so we can visit everything ourselves.</p><p>In short, all we need to do is:</p><ul><li>to visit the <code>statements</code> node</li><li>then to visit each <code>statement</code> node (we ignore the <code>ignore</code> nodes) and to select the <code>createStmt</code> node</li><li>visiting the <code>createStmt</code> nodes, we pick only the <code>definition</code> nodes (we ignore the <code>ignorable</code> nodes) to get all the columns definition</li></ul><h2>Translating Types from SQL to Your Language</h2><p>Inside the <code>VisitDefinition</code> method we deal with the only real complication of this visitor: handling types.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"csharp\" data-enlighter-theme=\"\" data-enlighter-highlight=\"37,38\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">        public FieldDescriptor VisitDefinition(DefinitionContext context)\n" +
-//         " \t{\n" +
-//         " \t\tstring name = context.name().NAME().GetText();\n" +
-//         " \t\tTypeDescriptor type;\n" +
-//         " \t\t\n" +
-//         " \t\tswitch(context.type().GetType().Name)\n" +
-//         " \t\t{\n" +
-//         " \t\t\tcase \"IntegerTypeContext\":\n" +
-//         " \t\t\t\ttype = VisitIntegerType(context.type() as IntegerTypeContext);\n" +
-//         " \t\t\t\tbreak;\n" +
-//         " \t\t\tcase \"SmallIntegerTypeContext\":\n" +
-//         " \t\t\t\ttype = VisitSmallIntegerType(context.type() as SmallIntegerTypeContext);\n" +
-//         " \t\t\t\tbreak;\n" +
-//         " \t\t\tcase \"VarcharTypeContext\":\n" +
-//         " \t\t\t\ttype = VisitVarcharType(context.type() as VarcharTypeContext);\n" +
-//         " \t\t\t\tbreak;\n" +
-//         " \t\t\tcase \"TimestampTypeContext\":\n" +
-//         " \t\t\t\ttype = VisitTimestampType(context.type() as TimestampTypeContext);\n" +
-//         " \t\t\t\tbreak;\n" +
-//         " \t\t\tcase \"TextTypeContext\":\n" +
-//         " \t\t\t\ttype = VisitTextType(context.type() as TextTypeContext);\n" +
-//         " \t\t\t\tbreak;               \n" +
-//         " \t\t\tcase \"DecimalTypeContext\":\n" +
-//         " \t\t\t\ttype = VisitDecimalType(context.type() as DecimalTypeContext);\n" +
-//         " \t\t\t\tbreak;  \n" +
-//         " \t\t\tcase \"CharTypeContext\":\n" +
-//         " \t\t\t\ttype = VisitCharType(context.type() as CharTypeContext);\n" +
-//         " \t\t\t\tbreak; \n" +
-//         " \t\t\tcase \"BlobTypeContext\":\n" +
-//         " \t\t\t\ttype = VisitBlobType(context.type() as BlobTypeContext);\n" +
-//         " \t\t\t\tbreak; \n" +
-//         " \t\t\tdefault:\n" +
-//         " \t\t\t\ttype = null;\n" +
-//         " \t\t\t\tbreak;\n" +
-//         " \t\t}\n" +
-//         " \t\t\n" +
-//         " \t\tif(context.nullability() != null &amp;&amp; context.nullability().NOT() != null)\n" +
-//         " \t\t\ttype.Nullability = false;\n" +
-//         " \t\n" +
-//         " \t\treturn new FieldDescriptor(name, type);\n" +
-//         " \t}</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"\">        </span><span class=\"kw1\">public</span><span class=\"\"> FieldDescriptor </span><span class=\"me0\">VisitDefinition</span><span class=\"br0\">(</span><span class=\"\">DefinitionContext context</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">  </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">    </span><span class=\"kw2\">string</span><span class=\"\"> name = context.</span><span class=\"me0\">name</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">.</span><span class=\"me0\">NAME</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">.</span><span class=\"me0\">GetText</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">    TypeDescriptor type;</span></li><li class=\" odd\"><span class=\"\">    </span></li><li class=\" even\"><span class=\"\">    </span><span class=\"kw1\">switch</span><span class=\"br0\">(</span><span class=\"\">context.</span><span class=\"me0\">type</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">.</span><span class=\"me0\">GetType</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">.Name</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">    </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">      </span><span class=\"kw1\">case</span><span class=\"\"> </span><span class=\"st1\">\"IntegerTypeContext\"</span><span class=\"\">:</span></li><li class=\" odd\"><span class=\"\">        type = </span><span class=\"me0\">VisitIntegerType</span><span class=\"br0\">(</span><span class=\"\">context.</span><span class=\"me0\">type</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\"> </span><span class=\"kw1\">as</span><span class=\"\"> IntegerTypeContext</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">        </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">      </span><span class=\"kw1\">case</span><span class=\"\"> </span><span class=\"st1\">\"SmallIntegerTypeContext\"</span><span class=\"\">:</span></li><li class=\" even\"><span class=\"\">        type = </span><span class=\"me0\">VisitSmallIntegerType</span><span class=\"br0\">(</span><span class=\"\">context.</span><span class=\"me0\">type</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\"> </span><span class=\"kw1\">as</span><span class=\"\"> SmallIntegerTypeContext</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">        </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">      </span><span class=\"kw1\">case</span><span class=\"\"> </span><span class=\"st1\">\"VarcharTypeContext\"</span><span class=\"\">:</span></li><li class=\" odd\"><span class=\"\">        type = </span><span class=\"me0\">VisitVarcharType</span><span class=\"br0\">(</span><span class=\"\">context.</span><span class=\"me0\">type</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\"> </span><span class=\"kw1\">as</span><span class=\"\"> VarcharTypeContext</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">        </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">      </span><span class=\"kw1\">case</span><span class=\"\"> </span><span class=\"st1\">\"TimestampTypeContext\"</span><span class=\"\">:</span></li><li class=\" even\"><span class=\"\">        type = </span><span class=\"me0\">VisitTimestampType</span><span class=\"br0\">(</span><span class=\"\">context.</span><span class=\"me0\">type</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\"> </span><span class=\"kw1\">as</span><span class=\"\"> TimestampTypeContext</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">        </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">      </span><span class=\"kw1\">case</span><span class=\"\"> </span><span class=\"st1\">\"TextTypeContext\"</span><span class=\"\">:</span></li><li class=\" odd\"><span class=\"\">        type = </span><span class=\"me0\">VisitTextType</span><span class=\"br0\">(</span><span class=\"\">context.</span><span class=\"me0\">type</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\"> </span><span class=\"kw1\">as</span><span class=\"\"> TextTypeContext</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">        </span><span class=\"kw1\">break</span><span class=\"\">;               </span></li><li class=\" odd\"><span class=\"\">      </span><span class=\"kw1\">case</span><span class=\"\"> </span><span class=\"st1\">\"DecimalTypeContext\"</span><span class=\"\">:</span></li><li class=\" even\"><span class=\"\">        type = </span><span class=\"me0\">VisitDecimalType</span><span class=\"br0\">(</span><span class=\"\">context.</span><span class=\"me0\">type</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\"> </span><span class=\"kw1\">as</span><span class=\"\"> DecimalTypeContext</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">        </span><span class=\"kw1\">break</span><span class=\"\">;  </span></li><li class=\" even\"><span class=\"\">      </span><span class=\"kw1\">case</span><span class=\"\"> </span><span class=\"st1\">\"CharTypeContext\"</span><span class=\"\">:</span></li><li class=\" odd\"><span class=\"\">        type = </span><span class=\"me0\">VisitCharType</span><span class=\"br0\">(</span><span class=\"\">context.</span><span class=\"me0\">type</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\"> </span><span class=\"kw1\">as</span><span class=\"\"> CharTypeContext</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">        </span><span class=\"kw1\">break</span><span class=\"\">; </span></li><li class=\" odd\"><span class=\"\">      </span><span class=\"kw1\">case</span><span class=\"\"> </span><span class=\"st1\">\"BlobTypeContext\"</span><span class=\"\">:</span></li><li class=\" even\"><span class=\"\">        type = </span><span class=\"me0\">VisitBlobType</span><span class=\"br0\">(</span><span class=\"\">context.</span><span class=\"me0\">type</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\"> </span><span class=\"kw1\">as</span><span class=\"\"> BlobTypeContext</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">        </span><span class=\"kw1\">break</span><span class=\"\">; </span></li><li class=\" even\"><span class=\"\">      </span><span class=\"kw1\">default</span><span class=\"\">:</span></li><li class=\" odd\"><span class=\"\">        type = </span><span class=\"kw1\">null</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">        </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">    </span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">    </span></li><li class=\"specialline odd\"><span class=\"\">    </span><span class=\"kw1\">if</span><span class=\"br0\">(</span><span class=\"\">context.</span><span class=\"me0\">nullability</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\"> != </span><span class=\"kw1\">null</span><span class=\"\"> &amp;&amp; context.</span><span class=\"me0\">nullability</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">.</span><span class=\"me0\">NOT</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\"> != </span><span class=\"kw1\">null</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\"specialline even\"><span class=\"\">      type.Nullability = </span><span class=\"kw1\">false</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">  </span></li><li class=\" even\"><span class=\"\">    </span><span class=\"kw1\">return</span><span class=\"\"> </span><span class=\"kw1\">new</span><span class=\"\"> </span><span class=\"me0\">FieldDescriptor</span><span class=\"br0\">(</span><span class=\"\">name, type</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">  </span><span class=\"br0\">}</span></li></ol><pre style=\"display: none;\">        public FieldDescriptor VisitDefinition(DefinitionContext context)\n" +
-//         " \t{\n" +
-//         " \t\tstring name = context.name().NAME().GetText();\n" +
-//         " \t\tTypeDescriptor type;\n" +
-//         " \t\t\n" +
-//         " \t\tswitch(context.type().GetType().Name)\n" +
-//         " \t\t{\n" +
-//         " \t\t\tcase \"IntegerTypeContext\":\n" +
-//         " \t\t\t\ttype = VisitIntegerType(context.type() as IntegerTypeContext);\n" +
-//         " \t\t\t\tbreak;\n" +
-//         " \t\t\tcase \"SmallIntegerTypeContext\":\n" +
-//         " \t\t\t\ttype = VisitSmallIntegerType(context.type() as SmallIntegerTypeContext);\n" +
-//         " \t\t\t\tbreak;\n" +
-//         " \t\t\tcase \"VarcharTypeContext\":\n" +
-//         " \t\t\t\ttype = VisitVarcharType(context.type() as VarcharTypeContext);\n" +
-//         " \t\t\t\tbreak;\n" +
-//         " \t\t\tcase \"TimestampTypeContext\":\n" +
-//         " \t\t\t\ttype = VisitTimestampType(context.type() as TimestampTypeContext);\n" +
-//         " \t\t\t\tbreak;\n" +
-//         " \t\t\tcase \"TextTypeContext\":\n" +
-//         " \t\t\t\ttype = VisitTextType(context.type() as TextTypeContext);\n" +
-//         " \t\t\t\tbreak;               \n" +
-//         " \t\t\tcase \"DecimalTypeContext\":\n" +
-//         " \t\t\t\ttype = VisitDecimalType(context.type() as DecimalTypeContext);\n" +
-//         " \t\t\t\tbreak;  \n" +
-//         " \t\t\tcase \"CharTypeContext\":\n" +
-//         " \t\t\t\ttype = VisitCharType(context.type() as CharTypeContext);\n" +
-//         " \t\t\t\tbreak; \n" +
-//         " \t\t\tcase \"BlobTypeContext\":\n" +
-//         " \t\t\t\ttype = VisitBlobType(context.type() as BlobTypeContext);\n" +
-//         " \t\t\t\tbreak; \n" +
-//         " \t\t\tdefault:\n" +
-//         " \t\t\t\ttype = null;\n" +
-//         " \t\t\t\tbreak;\n" +
-//         " \t\t}\n" +
-//         " \t\t\n" +
-//         " \t\tif(context.nullability() != null &amp;&amp; context.nullability().NOT() != null)\n" +
-//         " \t\t\ttype.Nullability = false;\n" +
-//         " \t\n" +
-//         " \t\treturn new FieldDescriptor(name, type);\n" +
-//         " \t}</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p>The issue is that we need to identify each type and then translate it in a way that is compatible with a programming language. In fact, SQL data types and programming language data types can be different. For example, SQL has types for variable and fixed size char array, this is less relevant in programming languages.</p><p>We already have done the work to easily identify each type by creating a label for each option of the <code>type</code> grammar rule. Now, we just need to use a different method to visit each node correctly.</p><p>Before seeing the examples of <code>VisitIntegerType</code> and <code>VisitSmallIntegerType</code>, let’s notice a couple of things. First, we deal with nullability of types only once, on lines 37-38. Second, we are only dealing with some types, the ones used in our example SQL files.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"csharp\" data-enlighter-theme=\"\" data-enlighter-highlight=\"\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">        private TypeDescriptor VisitSmallIntegerType(SmallIntegerTypeContext context)\n" +
-//         "         {\n" +
-//         "            if(context.UNSIGNED() != null)\n" +
-//         "                 return new IntegerTypeDescriptor(2, true);\n" +
-//         "             else\n" +
-//         "                 return new IntegerTypeDescriptor(2);\n" +
-//         "         }\n" +
-//         " \n" +
-//         "         private TypeDescriptor VisitIntegerType(IntegerTypeContext context)\n" +
-//         "         {\n" +
-//         "             if(context.UNSIGNED() != null)\n" +
-//         "                 return new IntegerTypeDescriptor(4, true);\n" +
-//         "             else\n" +
-//         "                 return new IntegerTypeDescriptor(4);\n" +
-//         "         }</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"\">        </span><span class=\"kw1\">private</span><span class=\"\"> TypeDescriptor </span><span class=\"me0\">VisitSmallIntegerType</span><span class=\"br0\">(</span><span class=\"\">SmallIntegerTypeContext context</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">        </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">           </span><span class=\"kw1\">if</span><span class=\"br0\">(</span><span class=\"\">context.</span><span class=\"me0\">UNSIGNED</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\"> != </span><span class=\"kw1\">null</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">                </span><span class=\"kw1\">return</span><span class=\"\"> </span><span class=\"kw1\">new</span><span class=\"\"> </span><span class=\"me0\">IntegerTypeDescriptor</span><span class=\"br0\">(</span><span class=\"nu0\">2</span><span class=\"\">, </span><span class=\"kw1\">true</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">            </span><span class=\"kw1\">else</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">                </span><span class=\"kw1\">return</span><span class=\"\"> </span><span class=\"kw1\">new</span><span class=\"\"> </span><span class=\"me0\">IntegerTypeDescriptor</span><span class=\"br0\">(</span><span class=\"nu0\">2</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">        </span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">        </span><span class=\"kw1\">private</span><span class=\"\"> TypeDescriptor </span><span class=\"me0\">VisitIntegerType</span><span class=\"br0\">(</span><span class=\"\">IntegerTypeContext context</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">        </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">            </span><span class=\"kw1\">if</span><span class=\"br0\">(</span><span class=\"\">context.</span><span class=\"me0\">UNSIGNED</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\"> != </span><span class=\"kw1\">null</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">                </span><span class=\"kw1\">return</span><span class=\"\"> </span><span class=\"kw1\">new</span><span class=\"\"> </span><span class=\"me0\">IntegerTypeDescriptor</span><span class=\"br0\">(</span><span class=\"nu0\">4</span><span class=\"\">, </span><span class=\"kw1\">true</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">            </span><span class=\"kw1\">else</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">                </span><span class=\"kw1\">return</span><span class=\"\"> </span><span class=\"kw1\">new</span><span class=\"\"> </span><span class=\"me0\">IntegerTypeDescriptor</span><span class=\"br0\">(</span><span class=\"nu0\">4</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">        </span><span class=\"br0\">}</span></li></ol><pre style=\"display: none;\">        private TypeDescriptor VisitSmallIntegerType(SmallIntegerTypeContext context)\n" +
-//         "         {\n" +
-//         "            if(context.UNSIGNED() != null)\n" +
-//         "                 return new IntegerTypeDescriptor(2, true);\n" +
-//         "             else\n" +
-//         "                 return new IntegerTypeDescriptor(2);\n" +
-//         "         }\n" +
-//         " \n" +
-//         "         private TypeDescriptor VisitIntegerType(IntegerTypeContext context)\n" +
-//         "         {\n" +
-//         "             if(context.UNSIGNED() != null)\n" +
-//         "                 return new IntegerTypeDescriptor(4, true);\n" +
-//         "             else\n" +
-//         "                 return new IntegerTypeDescriptor(4);\n" +
-//         "         }</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p>These two methods are representative of the little effort we have to do. Each method returns a <code>TypeDescriptor</code> specific for each type.</p><p>The methods are simple, but different because each type is different. In the case of integer types we need to check whether the type is unsigned or not. We use only one <code>IntegerTypeDescriptor</code> for all integer types. This is simply because they can be described in the same way: from our point of view, the only difference between integer types is the number of bytes they need.</p><p>The <code>TypeDescriptor</code> classes themselves are also fairly trivial. They just are a series of classes that contain specific information for each type.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"csharp\" data-enlighter-theme=\"\" data-enlighter-highlight=\"\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">public enum BaseType\n" +
-//         " {\n" +
-//         "     Integer,\n" +
-//         "     Floating,    \n" +
-//         "     Decimal,           \n" +
-//         "     Text,\n" +
-//         "     Binary,\n" +
-//         "     ArrayCharacters,        \n" +
-//         "     Year,\n" +
-//         "     DateTime\n" +
-//         " }\n" +
-//         " \n" +
-//         " public class TypeDescriptor\n" +
-//         " {\n" +
-//         "     public BaseType Type { get; protected set; }\n" +
-//         "     public bool Nullability { get; set; } = true;\n" +
-//         " }\n" +
-//         " \n" +
-//         " public class IntegerTypeDescriptor : TypeDescriptor\n" +
-//         " {\n" +
-//         "     public int Bytes { get; private set; }\n" +
-//         "     public bool Unsigned { get; private set;  }\n" +
-//         " \n" +
-//         "     public IntegerTypeDescriptor(int bytes, bool unsigned = false)\n" +
-//         "     {\n" +
-//         "         Type = BaseType.Integer;\n" +
-//         "         Bytes = bytes;\n" +
-//         "         Unsigned = unsigned;\n" +
-//         "     }\n" +
-//         " }</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"kw1\">public</span><span class=\"\"> </span><span class=\"kw2\">enum</span><span class=\"\"> BaseType</span></li><li class=\" even\"><span class=\"\"></span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">    Integer,</span></li><li class=\" even\"><span class=\"\">    Floating,    </span></li><li class=\" odd\"><span class=\"\">    Decimal,           </span></li><li class=\" even\"><span class=\"\">    Text,</span></li><li class=\" odd\"><span class=\"\">    Binary,</span></li><li class=\" even\"><span class=\"\">    ArrayCharacters,        </span></li><li class=\" odd\"><span class=\"\">    Year,</span></li><li class=\" even\"><span class=\"\">    DateTime</span></li><li class=\" odd\"><span class=\"\"></span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\"></span><span class=\"kw1\">public</span><span class=\"\"> </span><span class=\"kw3\">class</span><span class=\"\"> TypeDescriptor</span></li><li class=\" even\"><span class=\"\"></span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">    </span><span class=\"kw1\">public</span><span class=\"\"> BaseType Type </span><span class=\"br0\">{</span><span class=\"\"> get; </span><span class=\"kw1\">protected</span><span class=\"\"> set; </span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">    </span><span class=\"kw1\">public</span><span class=\"\"> </span><span class=\"kw2\">bool</span><span class=\"\"> Nullability </span><span class=\"br0\">{</span><span class=\"\"> get; set; </span><span class=\"br0\">}</span><span class=\"\"> = </span><span class=\"kw1\">true</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\"></span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\"></span><span class=\"kw1\">public</span><span class=\"\"> </span><span class=\"kw3\">class</span><span class=\"\"> IntegerTypeDescriptor : TypeDescriptor</span></li><li class=\" even\"><span class=\"\"></span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">    </span><span class=\"kw1\">public</span><span class=\"\"> </span><span class=\"kw2\">int</span><span class=\"\"> Bytes </span><span class=\"br0\">{</span><span class=\"\"> get; </span><span class=\"kw1\">private</span><span class=\"\"> set; </span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">    </span><span class=\"kw1\">public</span><span class=\"\"> </span><span class=\"kw2\">bool</span><span class=\"\"> Unsigned </span><span class=\"br0\">{</span><span class=\"\"> get; </span><span class=\"kw1\">private</span><span class=\"\"> set;  </span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\"></span></li><li class=\" even\"><span class=\"\">    </span><span class=\"kw1\">public</span><span class=\"\"> </span><span class=\"me0\">IntegerTypeDescriptor</span><span class=\"br0\">(</span><span class=\"kw2\">int</span><span class=\"\"> bytes, </span><span class=\"kw2\">bool</span><span class=\"\"> unsigned = </span><span class=\"kw1\">false</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">    </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">        Type = BaseType.Integer;</span></li><li class=\" odd\"><span class=\"\">        Bytes = bytes;</span></li><li class=\" even\"><span class=\"\">        Unsigned = unsigned;</span></li><li class=\" odd\"><span class=\"\">    </span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\"></span><span class=\"br0\">}</span></li></ol><pre style=\"display: none;\">public enum BaseType\n" +
-//         " {\n" +
-//         "     Integer,\n" +
-//         "     Floating,    \n" +
-//         "     Decimal,           \n" +
-//         "     Text,\n" +
-//         "     Binary,\n" +
-//         "     ArrayCharacters,        \n" +
-//         "     Year,\n" +
-//         "     DateTime\n" +
-//         " }\n" +
-//         " \n" +
-//         " public class TypeDescriptor\n" +
-//         " {\n" +
-//         "     public BaseType Type { get; protected set; }\n" +
-//         "     public bool Nullability { get; set; } = true;\n" +
-//         " }\n" +
-//         " \n" +
-//         " public class IntegerTypeDescriptor : TypeDescriptor\n" +
-//         " {\n" +
-//         "     public int Bytes { get; private set; }\n" +
-//         "     public bool Unsigned { get; private set;  }\n" +
-//         " \n" +
-//         "     public IntegerTypeDescriptor(int bytes, bool unsigned = false)\n" +
-//         "     {\n" +
-//         "         Type = BaseType.Integer;\n" +
-//         "         Bytes = bytes;\n" +
-//         "         Unsigned = unsigned;\n" +
-//         "     }\n" +
-//         " }</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p>You can see the rest on the companion repository.</p><h2>Generating Code</h2><p>We have a custom representation of our original SQL code: a description of all the tables suited for our needs. Now we can generate the corresponding source code. We are going to generate the code in multiple languages: C# and Kotlin. We do this to show how easy it is to do anything once we get the information out of SQL and because there are different limitations in the two languages.</p><h3>Generating Code in C#</h3><p>Let’s start with seeing C#. We have only one public method: <code>ToSourceCode</code>, which accepts a namespace and a series of classes/tables definition.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"csharp\" data-enlighter-theme=\"\" data-enlighter-highlight=\"23-24, 32-33\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">public class CSharpCodeGenerator : ICodeGenerator\n" +
-//         " {\n" +
-//         "     public string ToSourceCode(string idNamespace, List&lt;ClassDescriptor&gt; classes)\n" +
-//         "     {\n" +
-//         "         StringBuilder sourceCode = new StringBuilder();\n" +
-//         " \n" +
-//         "         // opening namespace\n" +
-//         "         sourceCode.AppendLine($\"namespace {idNamespace}\");\n" +
-//         "         sourceCode.AppendLine(\"{\");\n" +
-//         "         \n" +
-//         "         foreach(var c in classes)\n" +
-//         "         {\n" +
-//         "             sourceCode.AppendLine($\"\\tpublic class {c.Name}\");\n" +
-//         "             sourceCode.AppendLine(\"\\t{\");\n" +
-//         "             \n" +
-//         "             foreach(var f in c.Fields)\n" +
-//         "             {\n" +
-//         "                 switch(f.Type.Type)\n" +
-//         "                 {\n" +
-//         "                     case BaseType.Integer:\n" +
-//         "                         sourceCode.AppendLine($\"\\t\\tpublic {GenerateInt(f.Type as IntegerTypeDescriptor)} {f.Name} {{ get; set; }}\");\n" +
-//         "                         break;\n" +
-//         "                     case BaseType.Text:\n" +
-//         "                         sourceCode.AppendLine($\"\\t\\tpublic string {f.Name} {{ get; set; }}\");\n" +
-//         "                         break;\n" +
-//         "                     case BaseType.ArrayCharacters:\n" +
-//         "                         sourceCode.AppendLine($\"\\t\\tpublic {GenerateCharArray(f.Name, f.Type as CharArrayTypeDescriptor)}\");\n" +
-//         "                         break;\n" +
-//         "                     case BaseType.DateTime:\n" +
-//         "                         sourceCode.AppendLine($\"\\t\\tpublic DateTime {f.Name} {{ get; set; }}\");\n" +
-//         "                         break;                            \n" +
-//         "                     case BaseType.Decimal:                        \n" +
-//         "                         sourceCode.AppendLine($\"\\t\\tpublic decimal {f.Name} {{ get; set; }}\");\n" +
-//         "                         break;\n" +
-//         "                     case BaseType.Binary:\n" +
-//         "                         sourceCode.AppendLine($\"\\t\\tpublic bytes[] {f.Name} {{ get; set; }}\");\n" +
-//         "                         break;\n" +
-//         "                 }\n" +
-//         "             }\n" +
-//         "             \n" +
-//         "             sourceCode.AppendLine(\"\\t}\");\n" +
-//         "             sourceCode.AppendLine();\n" +
-//         "         }\n" +
-//         " \n" +
-//         "         // closing namespace            \n" +
-//         "         sourceCode.AppendLine(\"}\");\n" +
-//         " \n" +
-//         "         return sourceCode.ToString();\n" +
-//         "     }\n" +
-//         " \n" +
-//         "     [..]</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"kw1\">public</span><span class=\"\"> </span><span class=\"kw3\">class</span><span class=\"\"> CSharpCodeGenerator : ICodeGenerator</span></li><li class=\" even\"><span class=\"\"></span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">    </span><span class=\"kw1\">public</span><span class=\"\"> </span><span class=\"kw2\">string</span><span class=\"\"> </span><span class=\"me0\">ToSourceCode</span><span class=\"br0\">(</span><span class=\"kw2\">string</span><span class=\"\"> idNamespace, List&lt;ClassDescriptor&gt; classes</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">    </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">        StringBuilder sourceCode = </span><span class=\"kw1\">new</span><span class=\"\"> </span><span class=\"me0\">StringBuilder</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">       </span><span class=\"co1\"> // opening namespace</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">        sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"\">$</span><span class=\"st1\">\"namespace {idNamespace}\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">        sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"st1\">\"{\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">        </span></li><li class=\" odd\"><span class=\"\">        </span><span class=\"kw1\">foreach</span><span class=\"br0\">(</span><span class=\"\">var c </span><span class=\"kw3\">in</span><span class=\"\"> classes</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">        </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">            sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"\">$</span><span class=\"st1\">\"\\tpublic class {c.Name}\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">            sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"st1\">\"\\t{\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">            </span></li><li class=\" even\"><span class=\"\">            </span><span class=\"kw1\">foreach</span><span class=\"br0\">(</span><span class=\"\">var f </span><span class=\"kw3\">in</span><span class=\"\"> c.Fields</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">            </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">                </span><span class=\"kw1\">switch</span><span class=\"br0\">(</span><span class=\"\">f.Type.Type</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">                </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">                    </span><span class=\"kw1\">case</span><span class=\"\"> BaseType.Integer:</span></li><li class=\" odd\"><span class=\"\">                        sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"\">$</span><span class=\"st1\">\"\\t\\tpublic {GenerateInt(f.Type as IntegerTypeDescriptor)} {f.Name} {{ get; set; }}\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">                        </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\"specialline odd\"><span class=\"\">                    </span><span class=\"kw1\">case</span><span class=\"\"> BaseType.Text:</span></li><li class=\"specialline even\"><span class=\"\">                        sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"\">$</span><span class=\"st1\">\"\\t\\tpublic string {f.Name} {{ get; set; }}\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">                        </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">                    </span><span class=\"kw1\">case</span><span class=\"\"> BaseType.ArrayCharacters:</span></li><li class=\" odd\"><span class=\"\">                        sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"\">$</span><span class=\"st1\">\"\\t\\tpublic {GenerateCharArray(f.Name, f.Type as CharArrayTypeDescriptor)}\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">                        </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">                    </span><span class=\"kw1\">case</span><span class=\"\"> BaseType.DateTime:</span></li><li class=\" even\"><span class=\"\">                        sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"\">$</span><span class=\"st1\">\"\\t\\tpublic DateTime {f.Name} {{ get; set; }}\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">                        </span><span class=\"kw1\">break</span><span class=\"\">;                            </span></li><li class=\"specialline even\"><span class=\"\">                    </span><span class=\"kw1\">case</span><span class=\"\"> BaseType.Decimal:                        </span></li><li class=\"specialline odd\"><span class=\"\">                        sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"\">$</span><span class=\"st1\">\"\\t\\tpublic decimal {f.Name} {{ get; set; }}\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">                        </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">                    </span><span class=\"kw1\">case</span><span class=\"\"> BaseType.Binary:</span></li><li class=\" even\"><span class=\"\">                        sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"\">$</span><span class=\"st1\">\"\\t\\tpublic bytes[] {f.Name} {{ get; set; }}\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">                        </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">                </span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">            </span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">            </span></li><li class=\" odd\"><span class=\"\">            sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"st1\">\"\\t}\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">            sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">        </span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">       </span><span class=\"co1\"> // closing namespace            </span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">        sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"st1\">\"}\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\"></span></li><li class=\" even\"><span class=\"\">        </span><span class=\"kw1\">return</span><span class=\"\"> sourceCode.</span><span class=\"me0\">ToString</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">    </span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">    </span><span class=\"br0\">[</span><span class=\"\">..</span><span class=\"br0\">]</span></li></ol><pre style=\"display: none;\">public class CSharpCodeGenerator : ICodeGenerator\n" +
-//         " {\n" +
-//         "     public string ToSourceCode(string idNamespace, List&lt;ClassDescriptor&gt; classes)\n" +
-//         "     {\n" +
-//         "         StringBuilder sourceCode = new StringBuilder();\n" +
-//         " \n" +
-//         "         // opening namespace\n" +
-//         "         sourceCode.AppendLine($\"namespace {idNamespace}\");\n" +
-//         "         sourceCode.AppendLine(\"{\");\n" +
-//         "         \n" +
-//         "         foreach(var c in classes)\n" +
-//         "         {\n" +
-//         "             sourceCode.AppendLine($\"\\tpublic class {c.Name}\");\n" +
-//         "             sourceCode.AppendLine(\"\\t{\");\n" +
-//         "             \n" +
-//         "             foreach(var f in c.Fields)\n" +
-//         "             {\n" +
-//         "                 switch(f.Type.Type)\n" +
-//         "                 {\n" +
-//         "                     case BaseType.Integer:\n" +
-//         "                         sourceCode.AppendLine($\"\\t\\tpublic {GenerateInt(f.Type as IntegerTypeDescriptor)} {f.Name} {{ get; set; }}\");\n" +
-//         "                         break;\n" +
-//         "                     case BaseType.Text:\n" +
-//         "                         sourceCode.AppendLine($\"\\t\\tpublic string {f.Name} {{ get; set; }}\");\n" +
-//         "                         break;\n" +
-//         "                     case BaseType.ArrayCharacters:\n" +
-//         "                         sourceCode.AppendLine($\"\\t\\tpublic {GenerateCharArray(f.Name, f.Type as CharArrayTypeDescriptor)}\");\n" +
-//         "                         break;\n" +
-//         "                     case BaseType.DateTime:\n" +
-//         "                         sourceCode.AppendLine($\"\\t\\tpublic DateTime {f.Name} {{ get; set; }}\");\n" +
-//         "                         break;                            \n" +
-//         "                     case BaseType.Decimal:                        \n" +
-//         "                         sourceCode.AppendLine($\"\\t\\tpublic decimal {f.Name} {{ get; set; }}\");\n" +
-//         "                         break;\n" +
-//         "                     case BaseType.Binary:\n" +
-//         "                         sourceCode.AppendLine($\"\\t\\tpublic bytes[] {f.Name} {{ get; set; }}\");\n" +
-//         "                         break;\n" +
-//         "                 }\n" +
-//         "             }\n" +
-//         "             \n" +
-//         "             sourceCode.AppendLine(\"\\t}\");\n" +
-//         "             sourceCode.AppendLine();\n" +
-//         "         }\n" +
-//         " \n" +
-//         "         // closing namespace            \n" +
-//         "         sourceCode.AppendLine(\"}\");\n" +
-//         " \n" +
-//         "         return sourceCode.ToString();\n" +
-//         "     }\n" +
-//         " \n" +
-//         "     [..]</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p>This method takes care of generating the whole new source code file. It handles the enclosing namespace (necessary for C# files) and the whole class.</p><p>We transform columns into properties. These are the obvious choice because it is easy to anticipate that we would need to transform any data coming from SQL in a different format to handle it in our programming language. For example, dates would be different. We would also need to enforce fixed-size arrays in some way. That is because programming languages usually do not have a well-defined way to handle an input too large or too small. Instead databases can automatically do things like padding an input that is too short with spaces.</p><p>There are generally three cases:</p><ul><li>the type has a perfect correspondence (e.g. lines 23-24 <code>TEXT</code> becomes a <code>String</code>). So we just write the property directly.</li><li>the type has only a partial, but unambiguous, correspondence (e.g. lines 32-33 DECIMAL becomes <code>Decimal</code>, but the SQL and C# type behave differently). For example, a SQL decimal allows us to specify a precision, to set just how many digits it can hold. In C# you cannot do that. Normally we would need to take care of this difference, in our example, we just ignore the issue</li><li>the type has multiple correspondences (e.g., lines 20-21 <code>INT</code>, <code>SMALLINT</code> become <code>int</code>, <code>short</code>), so we handle them with a method</li></ul><p>For the third case, we are going to see the integer example.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"csharp\" data-enlighter-theme=\"\" data-enlighter-highlight=\"\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">        private string GenerateInt(IntegerTypeDescriptor descriptor)\n" +
-//         "         {\n" +
-//         "             StringBuilder intType = new StringBuilder();\n" +
-//         " \n" +
-//         "             // we ignore nullability, because it is not well supported for all C# types\n" +
-//         "             if(descriptor.Unsigned == true)\n" +
-//         "                 intType.Append(\"u\");\n" +
-//         " \n" +
-//         "             switch(descriptor.Bytes)\n" +
-//         "             {\n" +
-//         "                 case 2:\n" +
-//         "                     intType.Append(\"short\");\n" +
-//         "                     break;\n" +
-//         "                 case 4:\n" +
-//         "                     intType.Append(\"int\");\n" +
-//         "                     break;\n" +
-//         "                 case 8:\n" +
-//         "                     intType.Append(\"long\");\n" +
-//         "                     break;\n" +
-//         "             }\n" +
-//         "            \n" +
-//         "             return intType.ToString();\n" +
-//         "         }</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"\">        </span><span class=\"kw1\">private</span><span class=\"\"> </span><span class=\"kw2\">string</span><span class=\"\"> </span><span class=\"me0\">GenerateInt</span><span class=\"br0\">(</span><span class=\"\">IntegerTypeDescriptor descriptor</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">        </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">            StringBuilder intType = </span><span class=\"kw1\">new</span><span class=\"\"> </span><span class=\"me0\">StringBuilder</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">           </span><span class=\"co1\"> // we ignore nullability, because it is not well supported for all C# types</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">            </span><span class=\"kw1\">if</span><span class=\"br0\">(</span><span class=\"\">descriptor.Unsigned == </span><span class=\"kw1\">true</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">                intType.</span><span class=\"me0\">Append</span><span class=\"br0\">(</span><span class=\"st1\">\"u\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">            </span><span class=\"kw1\">switch</span><span class=\"br0\">(</span><span class=\"\">descriptor.Bytes</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">            </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">                </span><span class=\"kw1\">case</span><span class=\"\"> </span><span class=\"nu0\">2</span><span class=\"\">:</span></li><li class=\" even\"><span class=\"\">                    intType.</span><span class=\"me0\">Append</span><span class=\"br0\">(</span><span class=\"st1\">\"short\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">                    </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">                </span><span class=\"kw1\">case</span><span class=\"\"> </span><span class=\"nu0\">4</span><span class=\"\">:</span></li><li class=\" odd\"><span class=\"\">                    intType.</span><span class=\"me0\">Append</span><span class=\"br0\">(</span><span class=\"st1\">\"int\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">                    </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">                </span><span class=\"kw1\">case</span><span class=\"\"> </span><span class=\"nu0\">8</span><span class=\"\">:</span></li><li class=\" even\"><span class=\"\">                    intType.</span><span class=\"me0\">Append</span><span class=\"br0\">(</span><span class=\"st1\">\"long\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">                    </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">            </span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">           </span></li><li class=\" even\"><span class=\"\">            </span><span class=\"kw1\">return</span><span class=\"\"> intType.</span><span class=\"me0\">ToString</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">        </span><span class=\"br0\">}</span></li></ol><pre style=\"display: none;\">        private string GenerateInt(IntegerTypeDescriptor descriptor)\n" +
-//         "         {\n" +
-//         "             StringBuilder intType = new StringBuilder();\n" +
-//         " \n" +
-//         "             // we ignore nullability, because it is not well supported for all C# types\n" +
-//         "             if(descriptor.Unsigned == true)\n" +
-//         "                 intType.Append(\"u\");\n" +
-//         " \n" +
-//         "             switch(descriptor.Bytes)\n" +
-//         "             {\n" +
-//         "                 case 2:\n" +
-//         "                     intType.Append(\"short\");\n" +
-//         "                     break;\n" +
-//         "                 case 4:\n" +
-//         "                     intType.Append(\"int\");\n" +
-//         "                     break;\n" +
-//         "                 case 8:\n" +
-//         "                     intType.Append(\"long\");\n" +
-//         "                     break;\n" +
-//         "             }\n" +
-//         "            \n" +
-//         "             return intType.ToString();\n" +
-//         "         }</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p>We can find a perfect correspondence between each integer type in SQL and C#. Since integer types are all represented internally the same way, it all depends on the number of bytes used for each of them. Depending on how many bytes are stored in our instance of <code>IntegerTypeDescriptor</code>, we generate the proper C# type.</p><p>The only issue is with C# itself: it does not have perfect support for nullability. Until <a href=\"https://docs.microsoft.com/en-us/dotnet/csharp/whats-new/csharp-8#nullable-reference-types\">C# 8.0</a> reference types could be nullable by default, so it would be fairly inconsistent to work with nullable types both in our code and any third-party code.</p><p>On the other hand, we can easily deal with unsigned integers, we just need to prepend a <code>u</code>, to use unsigned types.</p><h3>Generating Code in Kotlin</h3><p>Generating the code for Kotlin is very similar.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"csharp\" data-enlighter-theme=\"\" data-enlighter-highlight=\"\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">public class KotlinCodeGenerator : ICodeGenerator\n" +
-//         " {\n" +
-//         "         public string ToSourceCode(string idNamespace, List&lt;ClassDescriptor&gt; classes)\n" +
-//         "         {\n" +
-//         "             StringBuilder sourceCode = new StringBuilder();\n" +
-//         " \n" +
-//         "             // declaring package\n" +
-//         "             if(!String.IsNullOrEmpty(idNamespace))\n" +
-//         "                 sourceCode.AppendLine($\"package {idNamespace}\");   \n" +
-//         " \n" +
-//         "             // adding imports\n" +
-//         "             sourceCode.AppendLine();\n" +
-//         "             sourceCode.AppendLine(\"import java.time.LocalDateTime\");\n" +
-//         "             sourceCode.AppendLine(\"import java.math.BigDecimal\");            \n" +
-//         "             sourceCode.AppendLine();\n" +
-//         "             \n" +
-//         "             foreach(var c in classes)\n" +
-//         "             {\n" +
-//         "                 sourceCode.Append($\"data class {c.Name}(\");\n" +
-//         "                 \n" +
-//         "                 foreach(var f in c.Fields)\n" +
-//         "                 {\n" +
-//         "                     switch(f.Type.Type)\n" +
-//         "                     {\n" +
-//         "                         case BaseType.Integer:\n" +
-//         "                             sourceCode.Append($\"var {f.Name}: {GenerateInt(f.Type as IntegerTypeDescriptor)}\");\n" +
-//         "                             break;\n" +
-//         "                         case BaseType.Text:\n" +
-//         "                             sourceCode.Append($\"var {f.Name}: String\");\n" +
-//         "                             break;\n" +
-//         "                         case BaseType.ArrayCharacters:\n" +
-//         "                             sourceCode.Append($\"var {f.Name}: {GenerateCharArray(f.Type as CharArrayTypeDescriptor)}\");\n" +
-//         "                             break;\n" +
-//         "                         case BaseType.DateTime:\n" +
-//         "                             sourceCode.Append($\"var {f.Name}: LocalDateTime\");\n" +
-//         "                             break;                            \n" +
-//         "                         case BaseType.Decimal:                        \n" +
-//         "                             sourceCode.Append($\"var {f.Name}: BigDecimal\");\n" +
-//         "                             break;\n" +
-//         "                         case BaseType.Binary:\n" +
-//         "                             sourceCode.Append($\"var {f.Name}: ByteArray\");\n" +
-//         "                             break;\n" +
-//         "                     }                    \n" +
-//         "                     \n" +
-//         "                     if(f != c.Fields.Last())\n" +
-//         "                         sourceCode.Append(\", \");\n" +
-//         "                 }\n" +
-//         "                 \n" +
-//         "                 sourceCode.AppendLine(\")\");\n" +
-//         "                 sourceCode.AppendLine(\"\");\n" +
-//         "             }\n" +
-//         " \n" +
-//         "             return sourceCode.ToString();\n" +
-//         "         }</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"kw1\">public</span><span class=\"\"> </span><span class=\"kw3\">class</span><span class=\"\"> KotlinCodeGenerator : ICodeGenerator</span></li><li class=\" even\"><span class=\"\"></span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">        </span><span class=\"kw1\">public</span><span class=\"\"> </span><span class=\"kw2\">string</span><span class=\"\"> </span><span class=\"me0\">ToSourceCode</span><span class=\"br0\">(</span><span class=\"kw2\">string</span><span class=\"\"> idNamespace, List&lt;ClassDescriptor&gt; classes</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">        </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">            StringBuilder sourceCode = </span><span class=\"kw1\">new</span><span class=\"\"> </span><span class=\"me0\">StringBuilder</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">           </span><span class=\"co1\"> // declaring package</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">            </span><span class=\"kw1\">if</span><span class=\"br0\">(</span><span class=\"\">!String.</span><span class=\"me0\">IsNullOrEmpty</span><span class=\"br0\">(</span><span class=\"\">idNamespace</span><span class=\"br0\">)</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">                sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"\">$</span><span class=\"st1\">\"package {idNamespace}\"</span><span class=\"br0\">)</span><span class=\"\">;   </span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">           </span><span class=\"co1\"> // adding imports</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">            sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">            sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"st1\">\"import java.time.LocalDateTime\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">            sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"st1\">\"import java.math.BigDecimal\"</span><span class=\"br0\">)</span><span class=\"\">;            </span></li><li class=\" odd\"><span class=\"\">            sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">            </span></li><li class=\" odd\"><span class=\"\">            </span><span class=\"kw1\">foreach</span><span class=\"br0\">(</span><span class=\"\">var c </span><span class=\"kw3\">in</span><span class=\"\"> classes</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">            </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">                sourceCode.</span><span class=\"me0\">Append</span><span class=\"br0\">(</span><span class=\"\">$</span><span class=\"st1\">\"data class {c.Name}(\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">                </span></li><li class=\" odd\"><span class=\"\">                </span><span class=\"kw1\">foreach</span><span class=\"br0\">(</span><span class=\"\">var f </span><span class=\"kw3\">in</span><span class=\"\"> c.Fields</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">                </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">                    </span><span class=\"kw1\">switch</span><span class=\"br0\">(</span><span class=\"\">f.Type.Type</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">                    </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">                        </span><span class=\"kw1\">case</span><span class=\"\"> BaseType.Integer:</span></li><li class=\" even\"><span class=\"\">                            sourceCode.</span><span class=\"me0\">Append</span><span class=\"br0\">(</span><span class=\"\">$</span><span class=\"st1\">\"var {f.Name}: {GenerateInt(f.Type as IntegerTypeDescriptor)}\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">                            </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">                        </span><span class=\"kw1\">case</span><span class=\"\"> BaseType.Text:</span></li><li class=\" odd\"><span class=\"\">                            sourceCode.</span><span class=\"me0\">Append</span><span class=\"br0\">(</span><span class=\"\">$</span><span class=\"st1\">\"var {f.Name}: String\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">                            </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">                        </span><span class=\"kw1\">case</span><span class=\"\"> BaseType.ArrayCharacters:</span></li><li class=\" even\"><span class=\"\">                            sourceCode.</span><span class=\"me0\">Append</span><span class=\"br0\">(</span><span class=\"\">$</span><span class=\"st1\">\"var {f.Name}: {GenerateCharArray(f.Type as CharArrayTypeDescriptor)}\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">                            </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">                        </span><span class=\"kw1\">case</span><span class=\"\"> BaseType.DateTime:</span></li><li class=\" odd\"><span class=\"\">                            sourceCode.</span><span class=\"me0\">Append</span><span class=\"br0\">(</span><span class=\"\">$</span><span class=\"st1\">\"var {f.Name}: LocalDateTime\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">                            </span><span class=\"kw1\">break</span><span class=\"\">;                            </span></li><li class=\" odd\"><span class=\"\">                        </span><span class=\"kw1\">case</span><span class=\"\"> BaseType.Decimal:                        </span></li><li class=\" even\"><span class=\"\">                            sourceCode.</span><span class=\"me0\">Append</span><span class=\"br0\">(</span><span class=\"\">$</span><span class=\"st1\">\"var {f.Name}: BigDecimal\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">                            </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">                        </span><span class=\"kw1\">case</span><span class=\"\"> BaseType.Binary:</span></li><li class=\" odd\"><span class=\"\">                            sourceCode.</span><span class=\"me0\">Append</span><span class=\"br0\">(</span><span class=\"\">$</span><span class=\"st1\">\"var {f.Name}: ByteArray\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">                            </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">                    </span><span class=\"br0\">}</span><span class=\"\">                    </span></li><li class=\" even\"><span class=\"\">                    </span></li><li class=\" odd\"><span class=\"\">                    </span><span class=\"kw1\">if</span><span class=\"br0\">(</span><span class=\"\">f != c.Fields.</span><span class=\"me0\">Last</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">                        sourceCode.</span><span class=\"me0\">Append</span><span class=\"br0\">(</span><span class=\"st1\">\", \"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">                </span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">                </span></li><li class=\" odd\"><span class=\"\">                sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"st1\">\")\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">                sourceCode.</span><span class=\"me0\">AppendLine</span><span class=\"br0\">(</span><span class=\"st1\">\"\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">            </span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">            </span><span class=\"kw1\">return</span><span class=\"\"> sourceCode.</span><span class=\"me0\">ToString</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">        </span><span class=\"br0\">}</span></li></ol><pre style=\"display: none;\">public class KotlinCodeGenerator : ICodeGenerator\n" +
-//         " {\n" +
-//         "         public string ToSourceCode(string idNamespace, List&lt;ClassDescriptor&gt; classes)\n" +
-//         "         {\n" +
-//         "             StringBuilder sourceCode = new StringBuilder();\n" +
-//         " \n" +
-//         "             // declaring package\n" +
-//         "             if(!String.IsNullOrEmpty(idNamespace))\n" +
-//         "                 sourceCode.AppendLine($\"package {idNamespace}\");   \n" +
-//         " \n" +
-//         "             // adding imports\n" +
-//         "             sourceCode.AppendLine();\n" +
-//         "             sourceCode.AppendLine(\"import java.time.LocalDateTime\");\n" +
-//         "             sourceCode.AppendLine(\"import java.math.BigDecimal\");            \n" +
-//         "             sourceCode.AppendLine();\n" +
-//         "             \n" +
-//         "             foreach(var c in classes)\n" +
-//         "             {\n" +
-//         "                 sourceCode.Append($\"data class {c.Name}(\");\n" +
-//         "                 \n" +
-//         "                 foreach(var f in c.Fields)\n" +
-//         "                 {\n" +
-//         "                     switch(f.Type.Type)\n" +
-//         "                     {\n" +
-//         "                         case BaseType.Integer:\n" +
-//         "                             sourceCode.Append($\"var {f.Name}: {GenerateInt(f.Type as IntegerTypeDescriptor)}\");\n" +
-//         "                             break;\n" +
-//         "                         case BaseType.Text:\n" +
-//         "                             sourceCode.Append($\"var {f.Name}: String\");\n" +
-//         "                             break;\n" +
-//         "                         case BaseType.ArrayCharacters:\n" +
-//         "                             sourceCode.Append($\"var {f.Name}: {GenerateCharArray(f.Type as CharArrayTypeDescriptor)}\");\n" +
-//         "                             break;\n" +
-//         "                         case BaseType.DateTime:\n" +
-//         "                             sourceCode.Append($\"var {f.Name}: LocalDateTime\");\n" +
-//         "                             break;                            \n" +
-//         "                         case BaseType.Decimal:                        \n" +
-//         "                             sourceCode.Append($\"var {f.Name}: BigDecimal\");\n" +
-//         "                             break;\n" +
-//         "                         case BaseType.Binary:\n" +
-//         "                             sourceCode.Append($\"var {f.Name}: ByteArray\");\n" +
-//         "                             break;\n" +
-//         "                     }                    \n" +
-//         "                     \n" +
-//         "                     if(f != c.Fields.Last())\n" +
-//         "                         sourceCode.Append(\", \");\n" +
-//         "                 }\n" +
-//         "                 \n" +
-//         "                 sourceCode.AppendLine(\")\");\n" +
-//         "                 sourceCode.AppendLine(\"\");\n" +
-//         "             }\n" +
-//         " \n" +
-//         "             return sourceCode.ToString();\n" +
-//         "         }</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p>There are no structural differences. The only variations depend on the differences between the languages themselves. For instance, the equivalent of a namespace, i.e., packages are not required in Kotlin. We can also use the special <a href=\"https://superkotlin.com/kotlin-mega-tutorial/#data-classes\">data classes</a> in Kotlin to quickly define a class with its properties directly in the default constructor.</p><p>On the other hand, we need to import some Java packages, because Kotlin does not directly have classes for DateTime types. Since Kotlin can run in different environments (i.e. JVM with Java support, JavaScript, native with C++ support), we should probably find a way to support all of these environments. In a normal situation, we would probably create a runtime in pure Kotlin with these custom types (i.e., KotlinDateTime) and then add support for each platform in separate files. This way we could just generate one Kotlin file for all environments. This would be overkill for this example, so we just consider Kotlin run in Java.</p><pre class=\"EnlighterJSRAW\" data-enlighter-language=\"csharp\" data-enlighter-theme=\"\" data-enlighter-highlight=\"\" data-enlighter-linenumbers=\"\" data-enlighter-lineoffset=\"\" data-enlighter-title=\"\" data-enlighter-group=\"\" style=\"display: none;\">\tprivate string GenerateInt(IntegerTypeDescriptor descriptor)\n" +
-//         "         {\n" +
-//         "             StringBuilder intType = new StringBuilder();            \n" +
-//         " \n" +
-//         "             switch(descriptor.Bytes)\n" +
-//         "             {\n" +
-//         "                 case 2:\n" +
-//         "                     intType.Append(\"Short\");\n" +
-//         "                     break;\n" +
-//         "                 case 4:\n" +
-//         "                     intType.Append(\"Int\");\n" +
-//         "                     break;\n" +
-//         "                 case 8:\n" +
-//         "                     intType.Append(\"Long\");\n" +
-//         "                     break;\n" +
-//         "             }\n" +
-//         " \n" +
-//         "             // we ignore unsigned, because it is not well supported in C#\n" +
-//         "             if(descriptor.Nullability == true)\n" +
-//         "                 intType.Append(\"?\");\n" +
-//         "            \n" +
-//         "             return intType.ToString();\n" +
-//         "         }</pre><div class=\"EnlighterJSWrapper enlighterEnlighterJSWrapper\"><ol class=\"hoverEnabled enlighterEnlighterJS EnlighterJS\"><li class=\" odd\"><span class=\"\">  </span><span class=\"kw1\">private</span><span class=\"\"> </span><span class=\"kw2\">string</span><span class=\"\"> </span><span class=\"me0\">GenerateInt</span><span class=\"br0\">(</span><span class=\"\">IntegerTypeDescriptor descriptor</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">        </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">            StringBuilder intType = </span><span class=\"kw1\">new</span><span class=\"\"> </span><span class=\"me0\">StringBuilder</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;            </span></li><li class=\" even\"><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">            </span><span class=\"kw1\">switch</span><span class=\"br0\">(</span><span class=\"\">descriptor.Bytes</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">            </span><span class=\"br0\">{</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">                </span><span class=\"kw1\">case</span><span class=\"\"> </span><span class=\"nu0\">2</span><span class=\"\">:</span></li><li class=\" even\"><span class=\"\">                    intType.</span><span class=\"me0\">Append</span><span class=\"br0\">(</span><span class=\"st1\">\"Short\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">                    </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">                </span><span class=\"kw1\">case</span><span class=\"\"> </span><span class=\"nu0\">4</span><span class=\"\">:</span></li><li class=\" odd\"><span class=\"\">                    intType.</span><span class=\"me0\">Append</span><span class=\"br0\">(</span><span class=\"st1\">\"Int\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">                    </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">                </span><span class=\"kw1\">case</span><span class=\"\"> </span><span class=\"nu0\">8</span><span class=\"\">:</span></li><li class=\" even\"><span class=\"\">                    intType.</span><span class=\"me0\">Append</span><span class=\"br0\">(</span><span class=\"st1\">\"Long\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">                    </span><span class=\"kw1\">break</span><span class=\"\">;</span></li><li class=\" even\"><span class=\"\">            </span><span class=\"br0\">}</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\"></span></li><li class=\" even\"><span class=\"\">           </span><span class=\"co1\"> // we ignore unsigned, because it is not well supported in C#</span><span class=\"\"></span></li><li class=\" odd\"><span class=\"\">            </span><span class=\"kw1\">if</span><span class=\"br0\">(</span><span class=\"\">descriptor.Nullability == </span><span class=\"kw1\">true</span><span class=\"br0\">)</span><span class=\"\"></span></li><li class=\" even\"><span class=\"\">                intType.</span><span class=\"me0\">Append</span><span class=\"br0\">(</span><span class=\"st1\">\"?\"</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">           </span></li><li class=\" even\"><span class=\"\">            </span><span class=\"kw1\">return</span><span class=\"\"> intType.</span><span class=\"me0\">ToString</span><span class=\"br0\">(</span><span class=\"br0\">)</span><span class=\"\">;</span></li><li class=\" odd\"><span class=\"\">        </span><span class=\"br0\">}</span></li></ol><pre style=\"display: none;\">\tprivate string GenerateInt(IntegerTypeDescriptor descriptor)\n" +
-//         "         {\n" +
-//         "             StringBuilder intType = new StringBuilder();            \n" +
-//         " \n" +
-//         "             switch(descriptor.Bytes)\n" +
-//         "             {\n" +
-//         "                 case 2:\n" +
-//         "                     intType.Append(\"Short\");\n" +
-//         "                     break;\n" +
-//         "                 case 4:\n" +
-//         "                     intType.Append(\"Int\");\n" +
-//         "                     break;\n" +
-//         "                 case 8:\n" +
-//         "                     intType.Append(\"Long\");\n" +
-//         "                     break;\n" +
-//         "             }\n" +
-//         " \n" +
-//         "             // we ignore unsigned, because it is not well supported in C#\n" +
-//         "             if(descriptor.Nullability == true)\n" +
-//         "                 intType.Append(\"?\");\n" +
-//         "            \n" +
-//         "             return intType.ToString();\n" +
-//         "         }</pre><div class=\"EnlighterJSToolbar\"><a class=\"EnlighterJSInfoButton\" title=\"EnlighterJS Syntax Highlighter\"></a><a class=\"EnlighterJSRawButton\" title=\"Toggle RAW Code\"></a><a class=\"EnlighterJSWindowButton\" title=\"Open Code in new Window\"></a><span class=\"clear\"></span></div></div><p>We can also see that the methods to generate integral types are very similar in both C# and Kotlin. The difference is that with Kotlin nullability has always been supported, while support for unsigned integer is still experimental for the current version.</p><h2>Summary</h2><p>In this article, we have seen how to parse SQL. In general, our advice is to:</p><ol><li>Consider if you can use existing tools or libraries to process SQL code. Some of them even support multiple SQL-dialects or multiple programming languages. If you can use any of them for your needs they should be your first option</li><li>If you want to build a solution in-house you may consider starting from the few ANTLR grammars available for the major SQL databases. They can really help you get started in parsing SQL</li><li>If you are stuck with a less common SQL database you might be in trouble. Parsing SQL from scratch it is going to be hard work: the language has a fairly simple structure, but it is large, it has many variations and in some cases even procedural extensions. In this article, we have seen a few tricks to start parsing even with a partial grammar. This can be a good way if you need to parse only small parts of the language</li></ol><p>If none of these options work for you, and you need some commercial option supporting you in building a solution for your needs, we at <a href=\"https://strumenta.com/\">Strumenta</a> may be able to help.</p> <script src=\"https://cdn.convertkit.com/assets/CKJS4.js?v=21\" defer=\"\"></script> <div class=\"ck_form_container ck_inline\" data-ck-version=\"6\"><div class=\"ck_form ck_vertical_subscription_form\"><div class=\"ck_form_content\"><h3 class=\"ck_form_title\">Download the guide with 68 resources on Creating Programming Languages</h3><div class=\"ck_description\"> <span class=\"ck_image\"> <img src=\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%200%200'%3E%3C/svg%3E\" alt=\"68resources\" data-lazy-src=\"https://convertkit.s3.amazonaws.com/subscription_forms/images/005/010/568/standard/68resources.jpg?1492612538\"><noscript><img src=\"https://convertkit.s3.amazonaws.com/subscription_forms/images/005/010/568/standard/68resources.jpg?1492612538\" alt=\"68resources\" /></noscript> </span><p>Receive the guide to your inbox to read it on all your devices when you have time</p></div></div><div class=\"ck_form_fields\"><div id=\"ck_success_msg\" style=\"display:none;\"><p>Success! Now check your email to confirm your subscription.</p></div><form id=\"ck_subscribe_form\" class=\"ck_subscribe_form\" action=\"https://forms.convertkit.com/landing_pages/198735/subscribe\" data-remote=\"true\"> <input type=\"hidden\" value=\"{&quot;form_style&quot;:&quot;full&quot;,&quot;embed_style&quot;:&quot;inline&quot;,&quot;embed_trigger&quot;:&quot;scroll_percentage&quot;,&quot;scroll_percentage&quot;:&quot;70&quot;,&quot;delay_seconds&quot;:&quot;10&quot;,&quot;display_position&quot;:&quot;br&quot;,&quot;display_devices&quot;:&quot;all&quot;,&quot;days_no_show&quot;:&quot;15&quot;,&quot;converted_behavior&quot;:&quot;show&quot;}\" id=\"ck_form_options\"> <input type=\"hidden\" name=\"id\" value=\"198735\" id=\"landing_page_id\"> <input type=\"hidden\" name=\"ck_form_recaptcha\" value=\"\" id=\"ck_form_recaptcha\"><div class=\"ck_errorArea\"><div id=\"ck_error_msg\" style=\"display:none\"><p>There was an error submitting your subscription. Please try again.</p></div></div><div class=\"ck_control_group ck_first_name_field_group\"> <label class=\"ck_label\" for=\"ck_firstNameField\">First Name</label> <input type=\"text\" name=\"first_name\" class=\"ck_first_name\" id=\"ck_firstNameField\"></div><div class=\"ck_control_group ck_email_field_group\"> <label class=\"ck_label\" for=\"ck_emailField\">Email Address</label> <input type=\"email\" name=\"email\" class=\"ck_email_address\" id=\"ck_emailField\" required=\"\"></div><div class=\"ck_control_group ck_captcha2_h_field_group ck-captcha2-h\" style=\"position: absolute !important;left: -999em !important;\"> <label class=\"ck_label\" for=\"ck_captcha2_h\">We use this field to detect spam bots. If you fill this in, you will be marked as a spammer.</label> <input type=\"text\" name=\"captcha2_h\" class=\"ck-captcha2-h\" id=\"ck_captcha2_h\"></div> <label class=\"ck_checkbox\" style=\"\"> <input class=\"optIn ck_course_opted\" name=\"course_opted\" type=\"checkbox\" id=\"optIn\" checked=\"\"> <span class=\"ck_opt_in_prompt\"><p>I'd like to receive the free email course.</p></span> </label> <button class=\"subscribe_button ck_subscribe_button btn fields\" id=\"ck_subscribe_button\"> Send it to me! </button> <span class=\"ck_guarantee\"> <a class=\"ck_powered_by\" href=\"https://convertkit.com?utm_source=dynamic&amp;utm_medium=referral&amp;utm_campaign=poweredby&amp;utm_content=form\">Powered by ConvertKit</a> </span></form></div></div></div><style type=\"text/css\">.ck_form{background:#fff url(data:image/gif;base64,R0lGODlhAQADAIABAMzMzP///yH/C1hNUCBEYXRhWE1QPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNS41LWMwMTQgNzkuMTUxNDgxLCAyMDEzLzAzLzEzLTEyOjA5OjE1ICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdFJlZj0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlUmVmIyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ0MgKE1hY2ludG9zaCkiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6MUQ5NjM5RjgxQUVEMTFFNEJBQTdGNTQwMjc5MTZDOTciIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6MUQ5NjM5RjkxQUVEMTFFNEJBQTdGNTQwMjc5MTZDOTciPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDoxRDk2MzlGNjFBRUQxMUU0QkFBN0Y1NDAyNzkxNkM5NyIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDoxRDk2MzlGNzFBRUQxMUU0QkFBN0Y1NDAyNzkxNkM5NyIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PgH//v38+/r5+Pf29fTz8vHw7+7t7Ovq6ejn5uXk4+Lh4N/e3dzb2tnY19bV1NPS0dDPzs3My8rJyMfGxcTDwsHAv769vLu6ubi3trW0s7KxsK+urayrqqmop6alpKOioaCfnp2cm5qZmJeWlZSTkpGQj46NjIuKiYiHhoWEg4KBgH9+fXx7enl4d3Z1dHNycXBvbm1sa2ppaGdmZWRjYmFgX15dXFtaWVhXVlVUU1JRUE9OTUxLSklIR0ZFRENCQUA/Pj08Ozo5ODc2NTQzMjEwLy4tLCsqKSgnJiUkIyIhIB8eHRwbGhkYFxYVFBMSERAPDg0MCwoJCAcGBQQDAgEAACH5BAEAAAEALAAAAAABAAMAAAICRFIAOw==) repeat-y center top;font-family:\"Helvetica Neue\",Helvetica,Arial,Verdana,sans-serif;line-height:1.5em;overflow:hidden;color:#666;font-size:16px;border-top:solid 20px #3071b0;border-top-color:#3071b0;border-bottom:solid 10px #3d3d3d;border-bottom-color:#1d446a;-webkit-box-shadow:0 0 5px rgba(0,0,0,.3);-moz-box-shadow:0 0 5px rgba(0,0,0,.3);box-shadow:0 0 5px rgba(0,0,0,.3);clear:both;margin:20px 0}.ck_form,.ck_form *{-webkit-box-sizing:border-box;-moz-box-sizing:border-box;box-sizing:border-box}#ck_subscribe_form{clear:both}.ck_form_content,.ck_form_fields{width:50%;float:left;padding:5%}.ck_form_content{border-bottom:none}.ck_form.ck_vertical{background:#fff}.ck_vertical .ck_form_content,.ck_vertical .ck_form_fields{padding:10%;width:100%;float:none}.ck_vertical .ck_form_content{border-bottom:1px dotted #aaa;overflow:hidden}@media all and (max-width:499px){.ck_form{background:#fff}.ck_form_content,.ck_form_fields{padding:10%;width:100%;float:none}.ck_form_content{border-bottom:1px dotted #aaa}}.ck_form_content h3{margin:0 0 15px;font-size:24px;padding:0}.ck_form_content p{font-size:14px}.ck_image{float:left;margin-right:5px}.ck_errorArea{display:none}#ck_success_msg{padding:10px 10px 0;border:solid 1px #ddd;background:#eee}.ck_label{font-size:14px;font-weight:700}.ck_form input[type=\"text\"],.ck_form input[type=\"email\"]{font-size:14px;padding:10px 8px;width:100%;border:1px solid #d6d6d6;-moz-border-radius:4px;-webkit-border-radius:4px;border-radius:4px;background-color:#f8f7f7;margin-bottom:5px;height:auto}.ck_form input[type=\"text\"]:focus,.ck_form input[type=\"email\"]:focus{outline:none;border-color:#aaa}.ck_checkbox{padding:10px 0 10px 20px;display:block;clear:both}.ck_checkbox input.optIn{margin-left:-20px;margin-top:0}.ck_form .ck_opt_in_prompt{margin-left:4px}.ck_form .ck_opt_in_prompt p{display:inline}.ck_form .ck_subscribe_button{width:100%;color:#fff;margin:10px 0 0;padding:10px 0;font-size:18px;background:#0d6db8;-moz-border-radius:4px;-webkit-border-radius:4px;border-radius:4px;cursor:pointer;border:none;text-shadow:none}.ck_form .ck_guarantee{color:#626262;font-size:12px;text-align:center;padding:5px 0;display:block}.ck_form .ck_powered_by{display:block;color:#aaa}.ck_form .ck_powered_by:hover{display:block;color:#444}.ck_converted_content{display:none;padding:5%;background:#fff}.ck_form_v6 #ck_success_msg{padding:0 10px}@media all and (max-width:403px){.ck_form_v6.ck_modal .ck_close_link{top:30px}}@media all and (min-width:404px) and (max-width:499px){.ck_form_v6.ck_modal .ck_close_link{top:57px}}.ck_powered_by{display:none!important}.ck_form_container.ck_inline{margin-left:20px}.ck_image img{margin-right:10px}.ck_form.ck_vertical_subscription_form.ck_horizontal{margin-left:20px}</style><div class=\"ttr_end\"></div><span id=\"tve_leads_end_content\" style=\"display: block; visibility: hidden; border: 1px solid transparent;\"></span></div><footer class=\"entry-footer\"><span class=\"blog-tags minor-meta\"><strong>Tags:</strong><span> <a href=\"https://tomassetti.me/tag/c/\" rel=\"tag\">C#</a>, <a href=\"https://tomassetti.me/tag/kotlin/\" rel=\"tag\">Kotlin</a>, <a href=\"https://tomassetti.me/tag/sql/\" rel=\"tag\">SQL</a>, <a href=\"https://tomassetti.me/tag/tools/\" rel=\"tag\">tools</a></span></span></footer><div class=\"post_delimiter\"></div></div><div class=\"post_author_timeline\"></div><span class=\"hidden\"> <span class=\"av-structured-data\" itemprop=\"image\" itemscope=\"itemscope\" itemtype=\"https://schema.org/ImageObject\"> <span itemprop=\"url\">https://tomassetti.me/wp-content/uploads/2020/04/Parsing-SQL.jpg</span> <span itemprop=\"height\">512</span> <span itemprop=\"width\">1024</span> </span><span class=\"av-structured-data\" itemprop=\"publisher\" itemtype=\"https://schema.org/Organization\" itemscope=\"itemscope\"> <span itemprop=\"name\">Gabriele Tomassetti</span> <span itemprop=\"logo\" itemscope=\"\" itemtype=\"https://schema.org/ImageObject\"> <span itemprop=\"url\">https://tomassetti.me/wp-content/uploads/2017/07/federico-tomassetti-software-architect-300.png</span> </span> </span><span class=\"av-structured-data\" itemprop=\"author\" itemscope=\"itemscope\" itemtype=\"https://schema.org/Person\"><span itemprop=\"name\">Gabriele Tomassetti</span></span><span class=\"av-structured-data\" itemprop=\"datePublished\" datetime=\"2020-04-15T10:58:48+02:00\">2020-04-15 10:58:48</span><span class=\"av-structured-data\" itemprop=\"dateModified\" itemtype=\"https://schema.org/dateModified\">2020-04-15 10:58:48</span><span class=\"av-structured-data\" itemprop=\"mainEntityOfPage\" itemtype=\"https://schema.org/mainEntityOfPage\"><span itemprop=\"name\">Parsing SQL</span></span></span></article><div class=\"small\"></div><div class=\"related_posts\"><h5 class=\"related_title\">You might also like</h5><div class=\"related_entries_container \"><div class=\"av_one_eighth no_margin alpha relThumb relThumb1 relThumbOdd post-format-standard related_column\"> <a href=\"https://tomassetti.me/pyleri-tutorial/\" class=\"relThumWrap noLightbox\"> <span class=\"related_image_wrap\" data-avia-related-tooltip=\"Pyleri Tutorial: Parsing with Ease\"><img width=\"180\" height=\"180\" src=\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20180%20180'%3E%3C/svg%3E\" class=\"attachment-square size-square wp-post-image\" alt=\"Pyleri: Parsing with Ease\" data-lazy-srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2019/06/Pyleri_-Parsing-with-Ease-180x180.jpg 180w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2019/06/Pyleri_-Parsing-with-Ease-80x80.jpg 80w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2019/06/Pyleri_-Parsing-with-Ease-36x36.jpg 36w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2019/06/Pyleri_-Parsing-with-Ease-120x120.jpg 120w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2019/06/Pyleri_-Parsing-with-Ease-450x450.jpg 450w\" data-lazy-sizes=\"(max-width: 180px) 100vw, 180px\" data-lazy-src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2019/06/Pyleri_-Parsing-with-Ease-180x180.jpg\"><noscript><img width=\"180\" height=\"180\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2019/06/Pyleri_-Parsing-with-Ease-180x180.jpg\" class=\"attachment-square size-square wp-post-image\" alt=\"Pyleri: Parsing with Ease\" srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2019/06/Pyleri_-Parsing-with-Ease-180x180.jpg 180w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2019/06/Pyleri_-Parsing-with-Ease-80x80.jpg 80w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2019/06/Pyleri_-Parsing-with-Ease-36x36.jpg 36w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2019/06/Pyleri_-Parsing-with-Ease-120x120.jpg 120w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2019/06/Pyleri_-Parsing-with-Ease-450x450.jpg 450w\" sizes=\"(max-width: 180px) 100vw, 180px\" /></noscript> <span class=\"related-format-icon \"><span class=\"related-format-icon-inner\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\"></span></span> </span> </a></div><div class=\"av_one_eighth no_margin relThumb relThumb2 relThumbEven post-format-standard related_column\"> <a href=\"https://tomassetti.me/guide-natural-language-processing/\" class=\"relThumWrap noLightbox\"> <span class=\"related_image_wrap\" data-avia-related-tooltip=\"Analyze and Understand Text: Guide to Natural Language Processing\"><img width=\"180\" height=\"180\" src=\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20180%20180'%3E%3C/svg%3E\" class=\"attachment-square size-square wp-post-image\" alt=\"Guide to Natural Language Processing\" data-lazy-srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/11/Guide-to-Natural-Languages-180x180.jpg 180w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/11/Guide-to-Natural-Languages-80x80.jpg 80w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/11/Guide-to-Natural-Languages-36x36.jpg 36w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/11/Guide-to-Natural-Languages-120x120.jpg 120w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/11/Guide-to-Natural-Languages-450x450.jpg 450w\" data-lazy-sizes=\"(max-width: 180px) 100vw, 180px\" data-lazy-src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/11/Guide-to-Natural-Languages-180x180.jpg\"><noscript><img width=\"180\" height=\"180\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/11/Guide-to-Natural-Languages-180x180.jpg\" class=\"attachment-square size-square wp-post-image\" alt=\"Guide to Natural Language Processing\" srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/11/Guide-to-Natural-Languages-180x180.jpg 180w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/11/Guide-to-Natural-Languages-80x80.jpg 80w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/11/Guide-to-Natural-Languages-36x36.jpg 36w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/11/Guide-to-Natural-Languages-120x120.jpg 120w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/11/Guide-to-Natural-Languages-450x450.jpg 450w\" sizes=\"(max-width: 180px) 100vw, 180px\" /></noscript> <span class=\"related-format-icon \"><span class=\"related-format-icon-inner\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\"></span></span> </span> </a></div><div class=\"av_one_eighth no_margin relThumb relThumb3 relThumbOdd post-format-standard related_column\"> <a href=\"https://tomassetti.me/autocompletion-editor-antlr/\" class=\"relThumWrap noLightbox\"> <span class=\"related_image_wrap\" data-avia-related-tooltip=\"Building autocompletion for an editor based on ANTLR\"><img width=\"180\" height=\"180\" src=\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20180%20180'%3E%3C/svg%3E\" class=\"attachment-square size-square wp-post-image\" alt=\"Building autocompletion for an editor based on ANTLR\" data-lazy-srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/08/Building-autocompletion-for-an-editor-based-on-ANTLR-180x180.jpg 180w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/08/Building-autocompletion-for-an-editor-based-on-ANTLR-80x80.jpg 80w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/08/Building-autocompletion-for-an-editor-based-on-ANTLR-36x36.jpg 36w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/08/Building-autocompletion-for-an-editor-based-on-ANTLR-120x120.jpg 120w\" data-lazy-sizes=\"(max-width: 180px) 100vw, 180px\" data-lazy-src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/08/Building-autocompletion-for-an-editor-based-on-ANTLR-180x180.jpg\"><noscript><img width=\"180\" height=\"180\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/08/Building-autocompletion-for-an-editor-based-on-ANTLR-180x180.jpg\" class=\"attachment-square size-square wp-post-image\" alt=\"Building autocompletion for an editor based on ANTLR\" srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/08/Building-autocompletion-for-an-editor-based-on-ANTLR-180x180.jpg 180w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/08/Building-autocompletion-for-an-editor-based-on-ANTLR-80x80.jpg 80w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/08/Building-autocompletion-for-an-editor-based-on-ANTLR-36x36.jpg 36w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/08/Building-autocompletion-for-an-editor-based-on-ANTLR-120x120.jpg 120w\" sizes=\"(max-width: 180px) 100vw, 180px\" /></noscript> <span class=\"related-format-icon \"><span class=\"related-format-icon-inner\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\"></span></span> </span> </a></div><div class=\"av_one_eighth no_margin relThumb relThumb4 relThumbEven post-format-standard related_column\"> <a href=\"https://tomassetti.me/why-you-should-not-use-flex-yacc-and-bison/\" class=\"relThumWrap noLightbox\"> <span class=\"related_image_wrap\" data-avia-related-tooltip=\"Why you should not use (f)lex, yacc and bison\"><img width=\"180\" height=\"180\" src=\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20180%20180'%3E%3C/svg%3E\" class=\"attachment-square size-square wp-post-image\" alt=\"\" data-lazy-srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/Why-you-should-not-use-flex-yacc-and-bison-180x180.jpg 180w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/Why-you-should-not-use-flex-yacc-and-bison-80x80.jpg 80w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/Why-you-should-not-use-flex-yacc-and-bison-36x36.jpg 36w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/Why-you-should-not-use-flex-yacc-and-bison-120x120.jpg 120w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/Why-you-should-not-use-flex-yacc-and-bison-450x450.jpg 450w\" data-lazy-sizes=\"(max-width: 180px) 100vw, 180px\" data-lazy-src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/Why-you-should-not-use-flex-yacc-and-bison-180x180.jpg\"><noscript><img width=\"180\" height=\"180\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/Why-you-should-not-use-flex-yacc-and-bison-180x180.jpg\" class=\"attachment-square size-square wp-post-image\" alt=\"\" srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/Why-you-should-not-use-flex-yacc-and-bison-180x180.jpg 180w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/Why-you-should-not-use-flex-yacc-and-bison-80x80.jpg 80w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/Why-you-should-not-use-flex-yacc-and-bison-36x36.jpg 36w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/Why-you-should-not-use-flex-yacc-and-bison-120x120.jpg 120w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/Why-you-should-not-use-flex-yacc-and-bison-450x450.jpg 450w\" sizes=\"(max-width: 180px) 100vw, 180px\" /></noscript> <span class=\"related-format-icon \"><span class=\"related-format-icon-inner\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\"></span></span> </span> </a></div><div class=\"av_one_eighth no_margin relThumb relThumb5 relThumbOdd post-format-standard related_column\"> <a href=\"https://tomassetti.me/parsing-html/\" class=\"relThumWrap noLightbox\"> <span class=\"related_image_wrap\" data-avia-related-tooltip=\"Parsing HTML: A Guide to Select the Right Library\"><img width=\"180\" height=\"180\" src=\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20180%20180'%3E%3C/svg%3E\" class=\"attachment-square size-square wp-post-image\" alt=\"Parsing HTML: A Guide To Select The Right Library\" data-lazy-srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/Parsing-HTML_-A-Guide-To-Select-The-Right-Library-180x180.jpg 180w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/Parsing-HTML_-A-Guide-To-Select-The-Right-Library-80x80.jpg 80w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/Parsing-HTML_-A-Guide-To-Select-The-Right-Library-36x36.jpg 36w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/Parsing-HTML_-A-Guide-To-Select-The-Right-Library-120x120.jpg 120w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/Parsing-HTML_-A-Guide-To-Select-The-Right-Library-450x450.jpg 450w\" data-lazy-sizes=\"(max-width: 180px) 100vw, 180px\" data-lazy-src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/Parsing-HTML_-A-Guide-To-Select-The-Right-Library-180x180.jpg\"><noscript><img width=\"180\" height=\"180\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/Parsing-HTML_-A-Guide-To-Select-The-Right-Library-180x180.jpg\" class=\"attachment-square size-square wp-post-image\" alt=\"Parsing HTML: A Guide To Select The Right Library\" srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/Parsing-HTML_-A-Guide-To-Select-The-Right-Library-180x180.jpg 180w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/Parsing-HTML_-A-Guide-To-Select-The-Right-Library-80x80.jpg 80w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/Parsing-HTML_-A-Guide-To-Select-The-Right-Library-36x36.jpg 36w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/Parsing-HTML_-A-Guide-To-Select-The-Right-Library-120x120.jpg 120w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/Parsing-HTML_-A-Guide-To-Select-The-Right-Library-450x450.jpg 450w\" sizes=\"(max-width: 180px) 100vw, 180px\" /></noscript> <span class=\"related-format-icon \"><span class=\"related-format-icon-inner\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\"></span></span> </span> </a></div><div class=\"av_one_eighth no_margin relThumb relThumb6 relThumbEven post-format-standard related_column\"> <a href=\"https://tomassetti.me/building-models-of-java-code-from-class-and-jar-files/\" class=\"relThumWrap noLightbox\"> <span class=\"related_image_wrap\" data-avia-related-tooltip=\"Building Models of Java Code from Source and JAR Files\"><img width=\"180\" height=\"180\" src=\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20180%20180'%3E%3C/svg%3E\" class=\"attachment-square size-square wp-post-image\" alt=\"Building models of Java code from source and JAR files\" data-lazy-srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2015/05/building_models-180x180.png 180w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2015/05/building_models-80x80.png 80w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2015/05/building_models-36x36.png 36w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2015/05/building_models-120x120.png 120w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2015/05/building_models-450x450.png 450w\" data-lazy-sizes=\"(max-width: 180px) 100vw, 180px\" data-lazy-src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2015/05/building_models-180x180.png\"><noscript><img width=\"180\" height=\"180\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2015/05/building_models-180x180.png\" class=\"attachment-square size-square wp-post-image\" alt=\"Building models of Java code from source and JAR files\" srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2015/05/building_models-180x180.png 180w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2015/05/building_models-80x80.png 80w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2015/05/building_models-36x36.png 36w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2015/05/building_models-120x120.png 120w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2015/05/building_models-450x450.png 450w\" sizes=\"(max-width: 180px) 100vw, 180px\" /></noscript> <span class=\"related-format-icon \"><span class=\"related-format-icon-inner\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\"></span></span> </span> </a></div><div class=\"av_one_eighth no_margin relThumb relThumb7 relThumbOdd post-format-standard related_column\"> <a href=\"https://tomassetti.me/antlr-and-jetbrains-mps-parsing-files-and-display-the-ast-usign-the-tree-notation/\" class=\"relThumWrap noLightbox\"> <span class=\"related_image_wrap\" data-avia-related-tooltip=\"ANTLR and Jetbrains MPS: Parsing files and display the AST using the tree notation\"><img width=\"180\" height=\"180\" src=\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20180%20180'%3E%3C/svg%3E\" class=\"attachment-square size-square wp-post-image\" alt=\"\" data-lazy-srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/05/ANTLR-and-Jetbrains-MPS-180x180.jpg 180w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/05/ANTLR-and-Jetbrains-MPS-80x80.jpg 80w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/05/ANTLR-and-Jetbrains-MPS-36x36.jpg 36w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/05/ANTLR-and-Jetbrains-MPS-120x120.jpg 120w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/05/ANTLR-and-Jetbrains-MPS-450x450.jpg 450w\" data-lazy-sizes=\"(max-width: 180px) 100vw, 180px\" data-lazy-src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/05/ANTLR-and-Jetbrains-MPS-180x180.jpg\"><noscript><img width=\"180\" height=\"180\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/05/ANTLR-and-Jetbrains-MPS-180x180.jpg\" class=\"attachment-square size-square wp-post-image\" alt=\"\" srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/05/ANTLR-and-Jetbrains-MPS-180x180.jpg 180w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/05/ANTLR-and-Jetbrains-MPS-80x80.jpg 80w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/05/ANTLR-and-Jetbrains-MPS-36x36.jpg 36w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/05/ANTLR-and-Jetbrains-MPS-120x120.jpg 120w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2016/05/ANTLR-and-Jetbrains-MPS-450x450.jpg 450w\" sizes=\"(max-width: 180px) 100vw, 180px\" /></noscript> <span class=\"related-format-icon \"><span class=\"related-format-icon-inner\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\"></span></span> </span> </a></div><div class=\"av_one_eighth no_margin omega relThumb relThumb8 relThumbEven post-format-standard related_column\"> <a href=\"https://tomassetti.me/guide-parsing-algorithms-terminology/\" class=\"relThumWrap noLightbox\"> <span class=\"related_image_wrap\" data-avia-related-tooltip=\"A Guide to Parsing: Algorithms and Terminology\"><img width=\"180\" height=\"180\" src=\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20180%20180'%3E%3C/svg%3E\" class=\"attachment-square size-square wp-post-image\" alt=\"A Guide To Parsing: Algorithms And Terminology\" data-lazy-srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/A-Guide-To-Parsing_-Algorithms-And-Terminology-180x180.jpg 180w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/A-Guide-To-Parsing_-Algorithms-And-Terminology-80x80.jpg 80w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/A-Guide-To-Parsing_-Algorithms-And-Terminology-36x36.jpg 36w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/A-Guide-To-Parsing_-Algorithms-And-Terminology-120x120.jpg 120w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/A-Guide-To-Parsing_-Algorithms-And-Terminology-450x450.jpg 450w\" data-lazy-sizes=\"(max-width: 180px) 100vw, 180px\" data-lazy-src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/A-Guide-To-Parsing_-Algorithms-And-Terminology-180x180.jpg\"><noscript><img width=\"180\" height=\"180\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/A-Guide-To-Parsing_-Algorithms-And-Terminology-180x180.jpg\" class=\"attachment-square size-square wp-post-image\" alt=\"A Guide To Parsing: Algorithms And Terminology\" srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/A-Guide-To-Parsing_-Algorithms-And-Terminology-180x180.jpg 180w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/A-Guide-To-Parsing_-Algorithms-And-Terminology-80x80.jpg 80w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/A-Guide-To-Parsing_-Algorithms-And-Terminology-36x36.jpg 36w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/A-Guide-To-Parsing_-Algorithms-And-Terminology-120x120.jpg 120w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/09/A-Guide-To-Parsing_-Algorithms-And-Terminology-450x450.jpg 450w\" sizes=\"(max-width: 180px) 100vw, 180px\" /></noscript> <span class=\"related-format-icon \"><span class=\"related-format-icon-inner\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\"></span></span> </span> </a></div></div></div><div class=\"template-page content alpha units\" style=\"background-color: #F8F8F8;\"><div class=\"post-entry post-entry-type-page post-entry-2592\" style=\"margin-left: 2em; margin-right: 1em;\"><div class=\"entry-content-wrapper clearfix\"><div style=\"padding-bottom:10px; \" class=\"av-special-heading av-special-heading-h2 blockquote modern-quote modern-centered avia-builder-el-7 el_before_av_one_third avia-builder-el-first \"><h2 class=\"av-special-heading-tag \" itemprop=\"headline\" style=\"margin-bottom: 1em;\">Do You Need a Parser?</h2><div class=\"av-subheading av-subheading_below\" style=\"font-size:18px; text-align: justify; margin-bottom: 1em;\"><p>We can design parsers for new languages, or rewrite parsers for existing languages built in house.</p><p> On top of parsers we can then help building interpreters, compilers, code generators, documentation generators, or translators (code converters) to other languages.</p></div><div class=\"special-heading-border\"><div class=\"special-heading-inner-border\"></div></div></div><div class=\"flex_column av_one_third flex_column_div av-zero-column-padding first avia-builder-el-8 el_after_av_heading el_before_av_one_third \" style=\"border-radius:0px; \"></div><div class=\"flex_column av_one_third flex_column_div av-zero-column-padding avia-builder-el-9 el_after_av_one_third el_before_av_one_third \" style=\"border-radius:0px; \"><div class=\"avia-button-wrap avia-button-center avia-builder-el-10 avia-builder-el-no-sibling \"><a href=\"https://tomassetti.me/contact-me-about-a-project/\" class=\"avia-button avia-button-fullwidth avia-icon_select-no avia-color-theme-color \" style=\"color:#ffffff; \"><span class=\"avia_iconbox_title\">Let’s Talk!</span><span class=\"avia_button_background avia-button avia-button-fullwidth avia-color-black\"></span></a></div></div><div class=\"flex_column av_one_third flex_column_div av-zero-column-padding avia-builder-el-11 el_after_av_one_third avia-builder-el-last \" style=\"border-radius:0px; \"></div><p></p> <span id=\"tve_leads_end_content\" style=\"display: block; visibility: hidden; border: 1px solid transparent;\"></span></div></div></div><div class=\"comment-entry post-entry\"></div></main><aside class=\"sidebar sidebar_right alpha units\" role=\"complementary\" itemscope=\"itemscope\" itemtype=\"https://schema.org/WPSideBar\"><div class=\"inner_sidebar extralight-border\"><section id=\"custom_html-4\" class=\"widget_text widget clearfix widget_custom_html\"><h3 class=\"widgettitle\">Course: Using ANTLR Like A Professional</h3><div class=\"textwidget custom-html-widget\"><a href=\"https://tomassetti.me/antlr-course\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"position: relative; overflow: hidden;\"><img src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2018/04/ANTLR-Course-Widget-Square.png\" alt=\"ANTLR Course Image\" width=\"256px\" data-lazy-src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2018/04/ANTLR-Course-Widget-Square.png\" class=\"lazyloaded\" data-was-processed=\"true\"><noscript><img src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2018/04/ANTLR-Course-Widget-Square.png\" alt=\"ANTLR Course Image\" width=\"256px\"></noscript><span class=\"image-overlay overlay-type-extern\"><span class=\"image-overlay-inside\"></span></span></a><p style=\"font-size: 10pt;\"><a href=\"https://tomassetti.me/antlr-course\" style=\" text-decoration: underline; color: #ea9030; \">A complete video course on parsing and ANTLR</a>, that will teach you how to build parser for everything from programming languages to data formats. <br> Taught from professionals that build parsers for a living.</p></div><span class=\"seperator extralight-border\"></span></section><section id=\"text-4\" class=\"widget clearfix widget_text\"><h3 class=\"widgettitle\">Book: How to create pragmatic, lightweight languages</h3><div class=\"textwidget\"><p><a href=\"https://tomassetti.me/create-languages\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"position: relative; overflow: hidden;\"><img src=\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%200%200'%3E%3C/svg%3E\" data-lazy-src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2018/03/low-resolution.png\"><noscript><img src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2018/03/low-resolution.png\"/></noscript><span class=\"image-overlay overlay-type-extern\"><span class=\"image-overlay-inside\"></span></span></a></p><p style=\" font-size: 10pt; \">This <a href=\"https://tomassetti.me/create-languages\" style=\" text-decoration: underline; color: #ea9030; \">book on Building Languages</a> is about building in a simple manner productive languages with parsers, compilers, interpreters, editors and more.</p></div> <span class=\"seperator extralight-border\"></span></section><section id=\"text-6\" class=\"widget clearfix widget_text\"><h3 class=\"widgettitle\">Book: JavaParser Visited</h3><div class=\"textwidget\"><a href=\"https://leanpub.com/javaparservisited\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"position: relative; overflow: hidden;\"><img src=\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%200%200'%3E%3C/svg%3E\" data-lazy-src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/01/javaparser-book.jpg\"><noscript><img src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2017/01/javaparser-book.jpg\"/></noscript><span class=\"image-overlay overlay-type-extern\"><span class=\"image-overlay-inside\"></span></span></a><p style=\" font-size: 10pt; \">This <a href=\"https://leanpub.com/javaparservisited\" style=\" text-decoration: underline; color: #ea9030; \">book on JavaParser</a> will teach you how to analyze, transform, and generate Java code</p></div> <span class=\"seperator extralight-border\"></span></section><section id=\"custom_html-2\" class=\"widget_text widget clearfix widget_custom_html\"><h3 class=\"widgettitle\">Strumenta – Consulting</h3><div class=\"textwidget custom-html-widget\">If you need help designing and developing DSLs, languages, parsers, compilers, interpreters, and editors you can check the <a href=\"https://strumenta.com/services\" style=\"text-decoration: underline;\">services page</a> of the Consulting studio we founded: <a href=\"https://strumenta.com\">Strumenta</a>. <a href=\"https://strumenta.com\" style=\"position: relative; overflow: hidden;\"><img style=\"display: block;margin: 10px 30px 0;width:70%\" src=\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%200%200'%3E%3C/svg%3E\" alt=\"Strumenta Logo\" data-lazy-src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2018/03/SRUMENTA-ESTESO-320x132.png\"><noscript><img style=\"display: block;margin: 10px 30px 0;width:70%\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2018/03/SRUMENTA-ESTESO-320x132.png\" alt=\"Strumenta Logo\"></noscript><span class=\"image-overlay overlay-type-extern\"><span class=\"image-overlay-inside\"></span></span></a></div><span class=\"seperator extralight-border\"></span></section><section id=\"categories-7\" class=\"widget clearfix widget_categories\"><h3 class=\"widgettitle\">Blog Categories</h3><ul><li class=\"cat-item cat-item-57\"><a href=\"https://tomassetti.me/category/language-engineering/antlr/\" title=\"Tutorials, news and informations on the parser generator ANTLR\">ANTLR</a> (17)</li><li class=\"cat-item cat-item-173\"><a href=\"https://tomassetti.me/category/application-modernization/\">Application modernization</a> (2)</li><li class=\"cat-item cat-item-30\"><a href=\"https://tomassetti.me/category/static-analysis/\" title=\"Articles about extracting data from code, analyze it and programmatically transform it. In other words we talk about static analysis, automated refactoring, and code generation.\">Code processing</a> (24)</li><li class=\"cat-item cat-item-68\"><a href=\"https://tomassetti.me/category/consulting/\" title=\"My experience about consulting and freelancing\">Consulting</a> (14)</li><li class=\"cat-item cat-item-166\"><a href=\"https://tomassetti.me/category/language-engineering/create-a-programming-language/\">Create a programming language</a> (1)</li><li class=\"cat-item cat-item-38\"><a href=\"https://tomassetti.me/category/language-engineering/domain-specific-languages/\" title=\"News, guides, tutorials and the bigger picture of creating domain specific languages\">Domain specific languages</a> (16)</li><li class=\"cat-item cat-item-172\"><a href=\"https://tomassetti.me/category/language-engineering/editors/\">Editors</a> (1)</li><li class=\"cat-item cat-item-54\"><a href=\"https://tomassetti.me/category/language-engineering/jetbrains-mps/\" title=\"Informations and tutorials on the language workbench Jetbrains MPS\">Jetbrains MPS</a> (11)</li><li class=\"cat-item cat-item-52\"><a href=\"https://tomassetti.me/category/language-engineering/language-design/\" title=\"Strategies, tips and tutorials on designing programming languages\">Language design</a> (13)</li><li class=\"cat-item cat-item-60\"><a href=\"https://tomassetti.me/category/language-engineering/\" title=\"The science, tools, strategies, patterns and tools behind the creation and processing of languages\">Language Engineering</a> (33)</li><li class=\"cat-item cat-item-1\"><a href=\"https://tomassetti.me/category/miscellany/\" title=\"Reviews, ideas, tip, opinions, etc. on all aspects of software development\">Miscellany</a> (5)</li><li class=\"cat-item cat-item-5\"><a href=\"https://tomassetti.me/category/language-engineering/mdd/\" title=\"Articles on creating software working on domains models\">Model driven development</a> (4)</li><li class=\"cat-item cat-item-171\"><a href=\"https://tomassetti.me/category/natural-language-processing/\">Natural Language Processing</a> (1)</li><li class=\"cat-item cat-item-70\"><a href=\"https://tomassetti.me/category/random-stuff/\" title=\"Everything that is not related to software development: ideas on natural languages, countries I have lived in, my life, stuff that make me curious. All sort of interesting things.\">Non software development</a> (4)</li><li class=\"cat-item cat-item-23\"><a href=\"https://tomassetti.me/category/open-source/\" title=\"Ideas and tips on how to make open source project successful and my open source projects\">Open-source</a> (8)</li><li class=\"cat-item cat-item-39\"><a href=\"https://tomassetti.me/category/language-engineering/parsing/\" title=\"Tutorials and issues on all aspects of creating software to analyse code\">Parsing</a> (22)</li><li class=\"cat-item cat-item-17\"><a href=\"https://tomassetti.me/category/research/\" title=\"Research Papers, conferences and challenges at the forefront of Language Engineering\">Research</a> (4)</li><li class=\"cat-item cat-item-4\"><a href=\"https://tomassetti.me/category/development/\" title=\"Everything related to software development that every developer could find useful\">Software Development</a> (16)</li><li class=\"cat-item cat-item-35\"><a href=\"https://tomassetti.me/category/software-engineering/\" title=\"Methods and processes of Software Engineering: how to create beautiful software\">Software Engineering</a> (13)</li><li class=\"cat-item cat-item-44\"><a href=\"https://tomassetti.me/category/turin-programming-language/\" title=\"The creation of the Turin Programmin Language: examples, problems, solutions and strategies.\">Turin Programming Language</a> (4)</li><li class=\"cat-item cat-item-63\"><a href=\"https://tomassetti.me/category/language-engineering/whole-platform/\" title=\"Informations and opinions about the Whole Platform\">Whole Platform</a> (2)</li><li class=\"cat-item cat-item-56\"><a href=\"https://tomassetti.me/category/language-engineering/xtext/\" title=\"News and tips on Xtext\">Xtext</a> (3)</li></ul> <span class=\"seperator extralight-border\"></span></section></div></aside></div></div><div class=\"container_wrap footer_color\" id=\"footer\"><div class=\"container\"><div class=\"flex_column av_one_fourth first el_before_av_one_fourth\"><section id=\"nav_menu-3\" class=\"widget clearfix widget_nav_menu\"><h3 class=\"widgettitle\">Menu</h3><div class=\"menu-tomassetti_footer-container\"><ul id=\"menu-tomassetti_footer\" class=\"menu\"><li id=\"menu-item-2582\" class=\"menu-item menu-item-type-post_type menu-item-object-page menu-item-2582\"><a href=\"https://tomassetti.me/about-me/\">About me</a></li><li id=\"menu-item-2579\" class=\"menu-item menu-item-type-post_type menu-item-object-page menu-item-2579\"><a href=\"https://tomassetti.me/how-i-work/\">How I work</a></li><li id=\"menu-item-5981\" class=\"menu-item menu-item-type-custom menu-item-object-custom menu-item-has-children menu-item-5981\"><a href=\"https://strumenta.com/services/\">Language Engineering Services</a><ul class=\"sub-menu\"><li id=\"menu-item-5092\" class=\"menu-item menu-item-type-custom menu-item-object-custom menu-item-5092\"><a href=\"https://strumenta.com/antlr-consulting/\">ANTLR Consulting</a></li><li id=\"menu-item-5984\" class=\"menu-item menu-item-type-custom menu-item-object-custom menu-item-5984\"><a href=\"https://strumenta.com/jetbrains-mps-consulting/\">Jetbrains MPS Consulting</a></li></ul></li><li id=\"menu-item-5961\" class=\"menu-item menu-item-type-custom menu-item-object-custom menu-item-5961\"><a href=\"https://strumenta.com/contact-us/\">Contact</a></li><li id=\"menu-item-2585\" class=\"menu-item menu-item-type-custom menu-item-object-custom menu-item-2585\"><a href=\"https://ie.linkedin.com/in/federicotomassetti\">LinkedIn</a></li></ul></div><span class=\"seperator extralight-border\"></span></section></div><div class=\"flex_column av_one_fourth el_after_av_one_fourth el_before_av_one_fourth \"><section id=\"categories-5\" class=\"widget clearfix widget_categories\"><h3 class=\"widgettitle\">Blog Categories</h3><ul><li class=\"cat-item cat-item-57\"><a href=\"https://tomassetti.me/category/language-engineering/antlr/\" title=\"Tutorials, news and informations on the parser generator ANTLR\">ANTLR</a> (17)</li><li class=\"cat-item cat-item-173\"><a href=\"https://tomassetti.me/category/application-modernization/\">Application modernization</a> (2)</li><li class=\"cat-item cat-item-30\"><a href=\"https://tomassetti.me/category/static-analysis/\" title=\"Articles about extracting data from code, analyze it and programmatically transform it. In other words we talk about static analysis, automated refactoring, and code generation.\">Code processing</a> (24)</li><li class=\"cat-item cat-item-68\"><a href=\"https://tomassetti.me/category/consulting/\" title=\"My experience about consulting and freelancing\">Consulting</a> (14)</li><li class=\"cat-item cat-item-166\"><a href=\"https://tomassetti.me/category/language-engineering/create-a-programming-language/\">Create a programming language</a> (1)</li><li class=\"cat-item cat-item-38\"><a href=\"https://tomassetti.me/category/language-engineering/domain-specific-languages/\" title=\"News, guides, tutorials and the bigger picture of creating domain specific languages\">Domain specific languages</a> (16)</li><li class=\"cat-item cat-item-172\"><a href=\"https://tomassetti.me/category/language-engineering/editors/\">Editors</a> (1)</li><li class=\"cat-item cat-item-54\"><a href=\"https://tomassetti.me/category/language-engineering/jetbrains-mps/\" title=\"Informations and tutorials on the language workbench Jetbrains MPS\">Jetbrains MPS</a> (11)</li><li class=\"cat-item cat-item-52\"><a href=\"https://tomassetti.me/category/language-engineering/language-design/\" title=\"Strategies, tips and tutorials on designing programming languages\">Language design</a> (13)</li><li class=\"cat-item cat-item-60\"><a href=\"https://tomassetti.me/category/language-engineering/\" title=\"The science, tools, strategies, patterns and tools behind the creation and processing of languages\">Language Engineering</a> (33)</li><li class=\"cat-item cat-item-1\"><a href=\"https://tomassetti.me/category/miscellany/\" title=\"Reviews, ideas, tip, opinions, etc. on all aspects of software development\">Miscellany</a> (5)</li><li class=\"cat-item cat-item-5\"><a href=\"https://tomassetti.me/category/language-engineering/mdd/\" title=\"Articles on creating software working on domains models\">Model driven development</a> (4)</li><li class=\"cat-item cat-item-171\"><a href=\"https://tomassetti.me/category/natural-language-processing/\">Natural Language Processing</a> (1)</li><li class=\"cat-item cat-item-70\"><a href=\"https://tomassetti.me/category/random-stuff/\" title=\"Everything that is not related to software development: ideas on natural languages, countries I have lived in, my life, stuff that make me curious. All sort of interesting things.\">Non software development</a> (4)</li><li class=\"cat-item cat-item-23\"><a href=\"https://tomassetti.me/category/open-source/\" title=\"Ideas and tips on how to make open source project successful and my open source projects\">Open-source</a> (8)</li><li class=\"cat-item cat-item-39\"><a href=\"https://tomassetti.me/category/language-engineering/parsing/\" title=\"Tutorials and issues on all aspects of creating software to analyse code\">Parsing</a> (22)</li><li class=\"cat-item cat-item-17\"><a href=\"https://tomassetti.me/category/research/\" title=\"Research Papers, conferences and challenges at the forefront of Language Engineering\">Research</a> (4)</li><li class=\"cat-item cat-item-4\"><a href=\"https://tomassetti.me/category/development/\" title=\"Everything related to software development that every developer could find useful\">Software Development</a> (16)</li><li class=\"cat-item cat-item-35\"><a href=\"https://tomassetti.me/category/software-engineering/\" title=\"Methods and processes of Software Engineering: how to create beautiful software\">Software Engineering</a> (13)</li><li class=\"cat-item cat-item-44\"><a href=\"https://tomassetti.me/category/turin-programming-language/\" title=\"The creation of the Turin Programmin Language: examples, problems, solutions and strategies.\">Turin Programming Language</a> (4)</li><li class=\"cat-item cat-item-63\"><a href=\"https://tomassetti.me/category/language-engineering/whole-platform/\" title=\"Informations and opinions about the Whole Platform\">Whole Platform</a> (2)</li><li class=\"cat-item cat-item-56\"><a href=\"https://tomassetti.me/category/language-engineering/xtext/\" title=\"News and tips on Xtext\">Xtext</a> (3)</li></ul> <span class=\"seperator extralight-border\"></span></section></div><div class=\"flex_column av_one_fourth el_after_av_one_fourth el_before_av_one_fourth \"><section id=\"tag_cloud-3\" class=\"widget clearfix widget_tag_cloud\"><h3 class=\"widgettitle\">Tags</h3><div class=\"tagcloud\"><a href=\"https://tomassetti.me/tag/automation/\" class=\"tag-cloud-link tag-link-73 tag-link-position-1\" style=\"font-size: 10.964705882353pt;\" aria-label=\"Automation (2 items)\">Automation</a> <a href=\"https://tomassetti.me/tag/c/\" class=\"tag-cloud-link tag-link-91 tag-link-position-2\" style=\"font-size: 20.847058823529pt;\" aria-label=\"C# (11 items)\">C#</a> <a href=\"https://tomassetti.me/tag/clojure/\" class=\"tag-cloud-link tag-link-80 tag-link-position-3\" style=\"font-size: 12.941176470588pt;\" aria-label=\"Clojure (3 items)\">Clojure</a> <a href=\"https://tomassetti.me/tag/code-generation/\" class=\"tag-cloud-link tag-link-156 tag-link-position-4\" style=\"font-size: 10.964705882353pt;\" aria-label=\"code generation (2 items)\">code generation</a> <a href=\"https://tomassetti.me/tag/dsl/\" class=\"tag-cloud-link tag-link-111 tag-link-position-5\" style=\"font-size: 14.588235294118pt;\" aria-label=\"dsl (4 items)\">dsl</a> <a href=\"https://tomassetti.me/tag/effectivejava/\" class=\"tag-cloud-link tag-link-135 tag-link-position-6\" style=\"font-size: 12.941176470588pt;\" aria-label=\"effectivejava (3 items)\">effectivejava</a> <a href=\"https://tomassetti.me/tag/formats/\" class=\"tag-cloud-link tag-link-146 tag-link-position-7\" style=\"font-size: 10.964705882353pt;\" aria-label=\"formats (2 items)\">formats</a> <a href=\"https://tomassetti.me/tag/frege/\" class=\"tag-cloud-link tag-link-74 tag-link-position-8\" style=\"font-size: 10.964705882353pt;\" aria-label=\"Frege (2 items)\">Frege</a> <a href=\"https://tomassetti.me/tag/functional-programming/\" class=\"tag-cloud-link tag-link-86 tag-link-position-9\" style=\"font-size: 10.964705882353pt;\" aria-label=\"Functional programming (2 items)\">Functional programming</a> <a href=\"https://tomassetti.me/tag/guide/\" class=\"tag-cloud-link tag-link-147 tag-link-position-10\" style=\"font-size: 12.941176470588pt;\" aria-label=\"guide (3 items)\">guide</a> <a href=\"https://tomassetti.me/tag/haskell/\" class=\"tag-cloud-link tag-link-75 tag-link-position-11\" style=\"font-size: 12.941176470588pt;\" aria-label=\"Haskell (3 items)\">Haskell</a> <a href=\"https://tomassetti.me/tag/icse/\" class=\"tag-cloud-link tag-link-18 tag-link-position-12\" style=\"font-size: 8pt;\" aria-label=\"icse (1 item)\">icse</a> <a href=\"https://tomassetti.me/tag/image-processing/\" class=\"tag-cloud-link tag-link-72 tag-link-position-13\" style=\"font-size: 8pt;\" aria-label=\"Image processing (1 item)\">Image processing</a> <a href=\"https://tomassetti.me/tag/interpreters/\" class=\"tag-cloud-link tag-link-149 tag-link-position-14\" style=\"font-size: 10.964705882353pt;\" aria-label=\"interpreters (2 items)\">interpreters</a> <a href=\"https://tomassetti.me/tag/interview/\" class=\"tag-cloud-link tag-link-71 tag-link-position-15\" style=\"font-size: 22pt;\" aria-label=\"Interview (13 items)\">Interview</a> <a href=\"https://tomassetti.me/tag/java/\" class=\"tag-cloud-link tag-link-24 tag-link-position-16\" style=\"font-size: 17.882352941176pt;\" aria-label=\"java (7 items)\">java</a> <a href=\"https://tomassetti.me/tag/javaparser/\" class=\"tag-cloud-link tag-link-83 tag-link-position-17\" style=\"font-size: 17.058823529412pt;\" aria-label=\"JavaParser (6 items)\">JavaParser</a> <a href=\"https://tomassetti.me/tag/javascript/\" class=\"tag-cloud-link tag-link-89 tag-link-position-18\" style=\"font-size: 14.588235294118pt;\" aria-label=\"JavaScript (4 items)\">JavaScript</a> <a href=\"https://tomassetti.me/tag/javasymbolsolver/\" class=\"tag-cloud-link tag-link-81 tag-link-position-19\" style=\"font-size: 8pt;\" aria-label=\"JavaSymbolSolver (1 item)\">JavaSymbolSolver</a> <a href=\"https://tomassetti.me/tag/jetbrains-mps/\" class=\"tag-cloud-link tag-link-13 tag-link-position-20\" style=\"font-size: 14.588235294118pt;\" aria-label=\"jetbrains mps (4 items)\">jetbrains mps</a> <a href=\"https://tomassetti.me/tag/kotlin/\" class=\"tag-cloud-link tag-link-90 tag-link-position-21\" style=\"font-size: 14.588235294118pt;\" aria-label=\"Kotlin (4 items)\">Kotlin</a> <a href=\"https://tomassetti.me/tag/language-integration/\" class=\"tag-cloud-link tag-link-16 tag-link-position-22\" style=\"font-size: 10.964705882353pt;\" aria-label=\"language integration (2 items)\">language integration</a> <a href=\"https://tomassetti.me/tag/language-server-protocol/\" class=\"tag-cloud-link tag-link-100 tag-link-position-23\" style=\"font-size: 12.941176470588pt;\" aria-label=\"language server protocol (3 items)\">language server protocol</a> <a href=\"https://tomassetti.me/tag/language-worbenches/\" class=\"tag-cloud-link tag-link-19 tag-link-position-24\" style=\"font-size: 8pt;\" aria-label=\"language worbenches (1 item)\">language worbenches</a> <a href=\"https://tomassetti.me/tag/libav/\" class=\"tag-cloud-link tag-link-84 tag-link-position-25\" style=\"font-size: 10.964705882353pt;\" aria-label=\"Libav (2 items)\">Libav</a> <a href=\"https://tomassetti.me/tag/machine-learning/\" class=\"tag-cloud-link tag-link-121 tag-link-position-26\" style=\"font-size: 10.964705882353pt;\" aria-label=\"machine learning (2 items)\">machine learning</a> <a href=\"https://tomassetti.me/tag/mbeddr/\" class=\"tag-cloud-link tag-link-48 tag-link-position-27\" style=\"font-size: 8pt;\" aria-label=\"mbeddr (1 item)\">mbeddr</a> <a href=\"https://tomassetti.me/tag/mise/\" class=\"tag-cloud-link tag-link-20 tag-link-position-28\" style=\"font-size: 8pt;\" aria-label=\"mise (1 item)\">mise</a> <a href=\"https://tomassetti.me/tag/natural-language/\" class=\"tag-cloud-link tag-link-113 tag-link-position-29\" style=\"font-size: 10.964705882353pt;\" aria-label=\"natural language (2 items)\">natural language</a> <a href=\"https://tomassetti.me/tag/nlp/\" class=\"tag-cloud-link tag-link-140 tag-link-position-30\" style=\"font-size: 10.964705882353pt;\" aria-label=\"nlp (2 items)\">nlp</a> <a href=\"https://tomassetti.me/tag/open-source/\" class=\"tag-cloud-link tag-link-82 tag-link-position-31\" style=\"font-size: 10.964705882353pt;\" aria-label=\"Open-source (2 items)\">Open-source</a> <a href=\"https://tomassetti.me/tag/opensource/\" class=\"tag-cloud-link tag-link-157 tag-link-position-32\" style=\"font-size: 10.964705882353pt;\" aria-label=\"opensource (2 items)\">opensource</a> <a href=\"https://tomassetti.me/tag/programming-languages/\" class=\"tag-cloud-link tag-link-123 tag-link-position-33\" style=\"font-size: 14.588235294118pt;\" aria-label=\"programming languages (4 items)\">programming languages</a> <a href=\"https://tomassetti.me/tag/python/\" class=\"tag-cloud-link tag-link-78 tag-link-position-34\" style=\"font-size: 17.882352941176pt;\" aria-label=\"Python (7 items)\">Python</a> <a href=\"https://tomassetti.me/tag/refactoring/\" class=\"tag-cloud-link tag-link-116 tag-link-position-35\" style=\"font-size: 12.941176470588pt;\" aria-label=\"refactoring (3 items)\">refactoring</a> <a href=\"https://tomassetti.me/tag/review/\" class=\"tag-cloud-link tag-link-102 tag-link-position-36\" style=\"font-size: 10.964705882353pt;\" aria-label=\"review (2 items)\">review</a> <a href=\"https://tomassetti.me/tag/roslyn/\" class=\"tag-cloud-link tag-link-99 tag-link-position-37\" style=\"font-size: 14.588235294118pt;\" aria-label=\"Roslyn (4 items)\">Roslyn</a> <a href=\"https://tomassetti.me/tag/sparkweb/\" class=\"tag-cloud-link tag-link-85 tag-link-position-38\" style=\"font-size: 14.588235294118pt;\" aria-label=\"SparkWeb (4 items)\">SparkWeb</a> <a href=\"https://tomassetti.me/tag/static-analysis/\" class=\"tag-cloud-link tag-link-104 tag-link-position-39\" style=\"font-size: 10.964705882353pt;\" aria-label=\"static-analysis (2 items)\">static-analysis</a> <a href=\"https://tomassetti.me/tag/testing/\" class=\"tag-cloud-link tag-link-25 tag-link-position-40\" style=\"font-size: 8pt;\" aria-label=\"testing (1 item)\">testing</a> <a href=\"https://tomassetti.me/tag/tools/\" class=\"tag-cloud-link tag-link-107 tag-link-position-41\" style=\"font-size: 12.941176470588pt;\" aria-label=\"tools (3 items)\">tools</a> <a href=\"https://tomassetti.me/tag/tripadvisor/\" class=\"tag-cloud-link tag-link-120 tag-link-position-42\" style=\"font-size: 12.941176470588pt;\" aria-label=\"TripAdvisor (3 items)\">TripAdvisor</a> <a href=\"https://tomassetti.me/tag/tutorial/\" class=\"tag-cloud-link tag-link-134 tag-link-position-43\" style=\"font-size: 17.882352941176pt;\" aria-label=\"tutorial (7 items)\">tutorial</a> <a href=\"https://tomassetti.me/tag/web/\" class=\"tag-cloud-link tag-link-98 tag-link-position-44\" style=\"font-size: 10.964705882353pt;\" aria-label=\"web (2 items)\">web</a> <a href=\"https://tomassetti.me/tag/webassembly/\" class=\"tag-cloud-link tag-link-105 tag-link-position-45\" style=\"font-size: 10.964705882353pt;\" aria-label=\"WebAssembly (2 items)\">WebAssembly</a></div> <span class=\"seperator extralight-border\"></span></section></div><div class=\"flex_column av_one_fourth el_after_av_one_fourth el_before_av_one_fourth \"><section id=\"custom_html-5\" class=\"widget_text widget clearfix widget_custom_html\"><h3 class=\"widgettitle\">Don’t miss the next updates!</h3><div class=\"textwidget custom-html-widget\"><div class=\"tve-leads-shortcode tve-tl-anim tl-anim-instant tve-leads-track-shortcode_4566 tve-leads-triggered\"><div class=\"tl-style\" id=\"tve_tcb2_blank\" data-state=\"98\" data-form-state=\"\"><style type=\"text/css\" class=\"tve_custom_style\">@media (min-width: 300px){[data-css=\"tve-u-15e429e013292c\"] { max-width: 100%; margin-top: 0px !important; margin-bottom: 0px !important; padding: 0px !important; }:not(#tve) [data-css=\"tve-u-25e429e013292d\"] button { text-transform: uppercase; background-image: none !important; background-color: rgb(234, 145, 48) !important; font-weight: bold !important; }[data-css=\"tve-u-05e429e0132927\"] { display: inline-block; padding: 10px !important; margin-bottom: 0px !important; margin-top: 0px !important; background-color: rgb(252, 252, 252) !important; }}</style><style type=\"text/css\" class=\"tve_user_custom_style\">.tve-leads-conversion-object .thrv_heading h1,.tve-leads-conversion-object .thrv_heading h2,.tve-leads-conversion-object .thrv_heading h3{margin:0;padding:0}.tve-leads-conversion-object .thrv_text_element p,.tve-leads-conversion-object .thrv_text_element h1,.tve-leads-conversion-object .thrv_text_element h2,.tve-leads-conversion-object .thrv_text_element h3{margin:0}</style><style type=\"text/css\" class=\"tve_global_style\"></style><div class=\"tve-leads-conversion-object\" data-tl-type=\"shortcode_4566\"><div class=\"tve_flt\"><div id=\"tve_editor\" class=\"tve_shortcode_editor\"><div class=\"thrv-leads-form-box tve_no_drag tve_no_icons thrv_wrapper tve_editor_main_content tve_empty_dropzone\" data-css=\"tve-u-05e429e0132927\"><div class=\"thrv_wrapper thrv_contentbox_shortcode thrv-content-box\" data-css=\"tve-u-15e429e013292c\"><div class=\"tve-content-box-background\"></div><div class=\"tve-cb tve_empty_dropzone\"><div class=\"thrv_wrapper thrv_text_element tve_empty_dropzone\"><p>Want to join over 10.000+ people that keep learning more about DSLs, parsers, interpreters, compilers and language design?</p></div><div class=\"thrv_wrapper thrv_lead_generation\" data-connection=\"api\"><input class=\"tve-lg-err-msg\" value=\"{&quot;email&quot;:&quot;Email address invalid&quot;,&quot;phone&quot;:&quot;Phone number invalid&quot;,&quot;password&quot;:&quot;Password invalid&quot;,&quot;passwordmismatch&quot;:&quot;Password mismatch error&quot;,&quot;required&quot;:&quot;Required field missing&quot;}\" type=\"hidden\"><div class=\"thrv_lead_generation_container tve_clearfix\"><form action=\"#\" method=\"post\" novalidate=\"\"><div class=\"tve_lead_generated_inputs_container tve_clearfix tve_empty_dropzone\"><div class=\"tve_lg_input_container tve_lg_input\"><input data-field=\"email\" data-required=\"1\" data-validation=\"email\" name=\"email\" placeholder=\"Email\" data-placeholder=\"Email\" class=\"\" type=\"email\"></div><div class=\"tve_lg_input_container tve_submit_container tve_lg_submit\" data-css=\"tve-u-25e429e013292d\" data-tcb_hover_state_parent=\"\"><button type=\"submit\" class=\"tve-froala\">Count Me In!</button></div></div><input id=\"_submit_option\" name=\"_submit_option\" value=\"redirect\" type=\"hidden\"><input id=\"_back_url\" name=\"_back_url\" value=\"https://tomassetti.me/thank-you\" type=\"hidden\"><input id=\"_autofill\" name=\"_autofill\" value=\"\" type=\"hidden\"><input name=\"__tcb_lg_fc\" id=\"__tcb_lg_fc\" value=\"YToxOntzOjEwOiJjb252ZXJ0a2l0IjtzOjc6IjUwMDA4OTAiO30=\" type=\"hidden\"></form></div></div></div></div></div></div></div></div></div></div></div><span class=\"seperator extralight-border\"></span></section></div></div></div><footer class=\"container_wrap socket_color\" id=\"socket\" role=\"contentinfo\" itemscope=\"itemscope\" itemtype=\"https://schema.org/WPFooter\"><div class=\"container\"> <span class=\"copyright\">© 2018 Strumenta | <a href=\"https://strumenta.com/privacy-policy/\">Privacy Policy of Strumenta Websites</a></span><ul class=\"noLightbox social_bookmarks icon_count_4\"><li class=\"social_bookmarks_twitter av-social-link-twitter social_icon_1\"><a target=\"_blank\" aria-label=\"Link to Twitter\" href=\"https://twitter.com/ftomasse\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\" title=\"Twitter\"><span class=\"avia_hidden_link_text\">Twitter</span></a></li><li class=\"social_bookmarks_linkedin av-social-link-linkedin social_icon_2\"><a target=\"_blank\" aria-label=\"Link to Linkedin\" href=\"https://ie.linkedin.com/in/federicotomassetti\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\" title=\"Linkedin\"><span class=\"avia_hidden_link_text\">Linkedin</span></a></li><li class=\"social_bookmarks_mail av-social-link-mail social_icon_3\"><a aria-label=\"Link to Mail\" href=\"mailto:federico@tomassetti.me\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\" title=\"Mail\"><span class=\"avia_hidden_link_text\">Mail</span></a></li><li class=\"social_bookmarks_rss av-social-link-rss social_icon_4\"><a aria-label=\"Link to Rss this site\" href=\"https://tomassetti.me/feed/\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\" title=\"Rss\"><span class=\"avia_hidden_link_text\">Rss</span></a></li></ul></div></footer></div> <a class=\"avia-post-nav avia-post-prev with-image\" href=\"https://tomassetti.me/quick-domain-specific-languages-in-python-with-textx/\"> <span class=\"label iconfont\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\"></span> <span class=\"entry-info-wrap\"> <span class=\"entry-info\"> <span class=\"entry-title\">Quick Domain-Specific Languages in Python with textX</span> <span class=\"entry-image\"><img width=\"80\" height=\"80\" src=\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2080%2080'%3E%3C/svg%3E\" class=\"attachment-thumbnail size-thumbnail wp-post-image\" alt=\"\" data-lazy-srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Quick-Domain-Specific-Languages-in-Python-with-textX-2-80x80.jpg 80w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Quick-Domain-Specific-Languages-in-Python-with-textX-2-36x36.jpg 36w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Quick-Domain-Specific-Languages-in-Python-with-textX-2-180x180.jpg 180w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Quick-Domain-Specific-Languages-in-Python-with-textX-2-120x120.jpg 120w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Quick-Domain-Specific-Languages-in-Python-with-textX-2-450x450.jpg 450w\" data-lazy-sizes=\"(max-width: 80px) 100vw, 80px\" data-lazy-src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Quick-Domain-Specific-Languages-in-Python-with-textX-2-80x80.jpg\"><noscript><img width=\"80\" height=\"80\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Quick-Domain-Specific-Languages-in-Python-with-textX-2-80x80.jpg\" class=\"attachment-thumbnail size-thumbnail wp-post-image\" alt=\"\" srcset=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Quick-Domain-Specific-Languages-in-Python-with-textX-2-80x80.jpg 80w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Quick-Domain-Specific-Languages-in-Python-with-textX-2-36x36.jpg 36w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Quick-Domain-Specific-Languages-in-Python-with-textX-2-180x180.jpg 180w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Quick-Domain-Specific-Languages-in-Python-with-textX-2-120x120.jpg 120w, https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/04/Quick-Domain-Specific-Languages-in-Python-with-textX-2-450x450.jpg 450w\" sizes=\"(max-width: 80px) 100vw, 80px\" /></noscript></span> </span> </span></a></div> <a href=\"#top\" title=\"Scroll to top\" id=\"scroll-top-link\" aria-hidden=\"true\" data-av_icon=\"\" data-av_iconfont=\"entypo-fontello\"><span class=\"avia_hidden_link_text\">Scroll to top</span></a><div id=\"fb-root\"></div><div class=\"avia-cookie-consent avia-cookiemessage-bottom-left\"><div class=\"container\"><p class=\"avia_cookie_text\">This site uses cookies. By continuing to browse the site, you are agreeing to our use of cookies.</p> <a href=\"https://strumenta.com/privacy-policy\" class=\"avia-button avia-cookie-consent-button avia-cookie-consent-button-1 av-extra-cookie-btn\">Privacy Policy of Strumenta Websites</a><a href=\"#\" class=\"avia-button avia-cookie-consent-button avia-cookie-consent-button-2 avia-cookie-close-bar \" data-contents=\"a6fe7a635a3ae90b600d28d9abace894\">OK</a></div></div> <script>function aggiungiAttributiAnalytics() {\n" +
-//         "         var fakeurl = document.URL;\n" +
-//         "         if(document.location.search.length > 0)\n" +
-//         "         {\n" +
-//         "             let params = new URLSearchParams(document.location.search.substring(1));    \n" +
-//         "             fakeurl = params.get(\"da\");\n" +
-//         "         }\n" +
-//         " \tga('send', {\n" +
-//         " \t\thitType: 'event',\n" +
-//         " \t\teventCategory: 'Link',\n" +
-//         " \t\teventAction: 'click',\n" +
-//         " \t\teventLabel: this.textContent,\n" +
-//         " \t\tdimension1: fakeurl,\n" +
-//         " \t\tdimension2: this.href,\n" +
-//         " \t\ttransport: 'beacon'\n" +
-//         " \t});\n" +
-//         " }\n" +
-//         " \n" +
-//         " // aggiungi attributi ai link per tracciamento\n" +
-//         " for (var ls = document.getElementsByTagName(\"a\"), numLinks = ls.length, i=0; i<numLinks; i++){    \n" +
-//         "         ls[i].addEventListener(\"click\", aggiungiAttributiAnalytics, false);\n" +
-//         " \tls[i].addEventListener(\"auxclick\", aggiungiAttributiAnalytics, false);\n" +
-//         " \tls[i].addEventListener(\"contextmenu\", aggiungiAttributiAnalytics, false);\n" +
-//         " }\n" +
-//         " \n" +
-//         " for (var lsb = document.getElementsByTagName(\"button\"), numLinks = lsb.length, i=0; i<numLinks; i++){    \n" +
-//         "         lsb[i].addEventListener(\"click\", aggiungiAttributiAnalytics, false);\n" +
-//         " \tlsb[i].addEventListener(\"auxclick\", aggiungiAttributiAnalytics, false);\n" +
-//         " \tlsb[i].addEventListener(\"contextmenu\", aggiungiAttributiAnalytics, false);\n" +
-//         " }\n" +
-//         " \n" +
-//         " function track_checkout(price, item) {\n" +
-//         "     fbq('track', 'InitiateCheckout', {\n" +
-//         "       content_name: item,\n" +
-//         "       value: price,\n" +
-//         "       currency: 'USD'\n" +
-//         "     });\n" +
-//         " }\n" +
-//         " // aggiungi tracciamento delle riproduzioni audio\n" +
-//         " jQuery(\"#amazon-ai-player\").on(\"play\", function (e) {\n" +
-//         "     ga('send', {\n" +
-//         "         hitType: 'event',\n" +
-//         "         eventCategory: 'Audio',\n" +
-//         "         eventAction: 'play',\n" +
-//         "         eventLabel: document.title.substr(0, document.title.search(\" - Federico Tomassetti\"))\n" +
-//         "     });\n" +
-//         " });\n" +
-//         " \n" +
-//         " // Find all YouTube and Vimeo videos\n" +
-//         " var allVideos = jQuery(\"iframe[src*='//player.vimeo.com'], iframe[src*='//www.youtube.com']\"),\n" +
-//         " \n" +
-//         "     // The element that is fluid width\n" +
-//         "     fluidEl = jQuery(\"body\");\n" +
-//         " \n" +
-//         " // Figure out and save aspect ratio for each video\n" +
-//         " allVideos.each(function() {\n" +
-//         "   jQuery(this)\n" +
-//         "     .data('aspectRatio', this.height / this.width)\n" +
-//         " \n" +
-//         "     // and remove the hard coded width/height\n" +
-//         "     .removeAttr('height')\n" +
-//         "     .removeAttr('width');\n" +
-//         " \n" +
-//         " });\n" +
-//         " \n" +
-//         " // When the window is resized\n" +
-//         " jQuery(window).resize(function() {\n" +
-//         " \n" +
-//         "   var newWidth = fluidEl.width();\n" +
-//         " \n" +
-//         "   // Resize all videos according to their own aspect ratio\n" +
-//         "   allVideos.each(function() {\n" +
-//         " \n" +
-//         "     var el = jQuery(this);\n" +
-//         "     el\n" +
-//         "       .width(newWidth)\n" +
-//         "       .height(newWidth * el.data('aspectRatio'));\n" +
-//         " \n" +
-//         "   });\n" +
-//         " \n" +
-//         " // Kick off one resize to fix all videos on page load\n" +
-//         " }).resize();</script> <div id=\"sb_super_bar\" class=\"orange\" style=\"display: none;\"><div class=\"sbprogress-container\"><span class=\"sbprogress-bar\" style=\"width: 1.1212%;\"></span></div><div id=\"sb_main_bar\"><div class=\"sb_text-size\"> <a href=\"https://tomassetti.me/category/language-engineering/antlr/\">ANTLR</a></div><div class=\"sb_post-data\"><h2> Parsing SQL</h2> <span class=\"sb_author\">by Gabriele Tomassetti</span> <span class=\"sb_ttr\">time to read: 22 min</span></div><div class=\"sb_prev-next-posts\"> <a href=\"https://tomassetti.me/why-you-should-not-use-flex-yacc-and-bison/\"><i class=\"sbicn-left-open-1\"></i></a><div class=\"sb_next_post\"><div class=\"sb_next_post_image\"> <img src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/Why-you-should-not-use-flex-yacc-and-bison-205x155.jpg\" alt=\"\" data-lazy-src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/Why-you-should-not-use-flex-yacc-and-bison-205x155.jpg\" class=\"lazyloaded\" data-was-processed=\"true\"><noscript><img src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/uploads/2020/03/Why-you-should-not-use-flex-yacc-and-bison-205x155.jpg\" alt=\"\"></noscript></div><div class=\"sb_next_post_info\"> <span class=\"sb_title\"> <span class=\"sb_category\"> Application modernization </span> <span class=\"sb_tcategory\"> Why you should not use (f)lex, yacc and bison </span> </span></div></div></div><ul class=\"sb_share \"><li class=\"sbfacebook\"> <a href=\"#\" title=\"Share on Facebook\" class=\"sbsoc-fb\" target=\"_blank\"><i class=\"sbicn-facebook\"></i> </a></li><li class=\"sbtwitter\"> <a href=\"#\" data-via=\"\" data-title=\"Parsing SQL\" title=\"Share on Twitter\" class=\"sbsoc-tw\" target=\"_blank\"><i class=\"sbicn-twitter\"></i> </a></li><li class=\"sblinkedin\"> <a href=\"#\" title=\"Share on Linkedin\" class=\"sbsoc-linked\" target=\"_blank\"><i class=\"sbicn-linkedin\"></i> </a></li></ul></div></div> <script type=\"text/javascript\">/* <![CDATA[ */ var avia_framework_globals = avia_framework_globals || {};\n" +
-//         "     avia_framework_globals.frameworkUrl = 'https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/themes/enfold/framework/';\n" +
-//         "     avia_framework_globals.installedAt = 'https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/themes/enfold/';\n" +
-//         "     avia_framework_globals.ajaxurl = 'https://tomassetti.me/wp-admin/admin-ajax.php'; /* ]]> */</script> <div class=\"tve-leads-slide-in tve-tl-anim tve-leads-track-slide_in-136 tl-anim-slide_right tl_bot_right tve-trigger-hide\"><div class=\"tl-style\" id=\"tve_tcb2_overlayed-patterns-1-step\" data-state=\"136\" data-form-state=\"\"><style type=\"text/css\" class=\"tve_custom_style\">@import url(\"//fonts.googleapis.com/css?family=Cabin:400,600,700,500&subset=latin\");@import url(\"//fonts.googleapis.com/css?family=Allerta+Stencil:400,&subset=latin\");@media (min-width: 300px){:not(#tve) [data-css=\"tve-u-185cadb3c8624cf\"] strong { font-weight: 600; }[data-css=\"tve-u-35cadb3c862135\"] h3 { margin: 0px !important; padding: 0px !important; }[data-css=\"tve-u-35cadb3c862135\"] h2 { margin: 0px !important; padding: 0px !important; }[data-css=\"tve-u-35cadb3c862135\"] h1 { margin: 0px !important; padding: 0px !important; }[data-css=\"tve-u-35cadb3c862135\"] p { margin: 0px !important; padding: 0px !important; }[data-css=\"tve-u-05cadb3c86207a\"] { padding: 15px 0px 15px 15px !important; max-width: 720px !important; background-color: rgba(222, 222, 222, 0.01) !important; }:not(#tve) [data-css=\"tve-u-175cadb3c862493\"]:hover input { border-bottom: 1px solid rgba(255, 255, 255, 0.8) !important; }:not(#tve) [data-css=\"tve-u-185cadb3c8624cf\"]:hover button { border-color: rgb(255, 255, 255) !important; background-image: repeating-radial-gradient(circle at center center, rgba(244, 67, 54, 0.4), rgba(244, 67, 54, 0.4) 1px, transparent 1px, transparent 100%) !important; background-size: 3px 3px !important; background-position: 50% 50% !important; background-attachment: scroll !important; background-repeat: repeat !important; }:not(#tve) [data-css=\"tve-u-185cadb3c8624cf\"] button { border-color: rgb(255, 255, 255); color: rgb(244, 67, 54); font-family: Cabin; font-weight: 700; font-size: 16px; line-height: 1.12em; letter-spacing: 2px; background-image: none !important; background-color: rgb(255, 255, 255) !important; margin: 0px !important; }:not(#tve) [data-css=\"tve-u-175cadb3c862493\"] input { border-color: currentcolor currentcolor rgb(255, 255, 255); border-style: none none solid; border-width: medium medium 1px; border-image: initial; font-family: Cabin; font-weight: 400; font-size: 18px; letter-spacing: 1px; line-height: 1.12em; background-image: none !important; margin-top: 0px !important; background-color: rgba(233, 236, 239, 0) !important; }:not(#tve) [data-css=\"tve-u-175cadb3c862493\"] input, :not(#tve) [data-css=\"tve-u-175cadb3c862493\"] input::placeholder { color: rgb(255, 255, 255) !important; }[data-css=\"tve-u-165cadb3c862456\"] { float: none; margin: 0px auto !important; padding: 0px !important; }[data-css=\"tve-u-85cadb3c862272\"] { margin-bottom: 0px !important; background-image: linear-gradient(rgb(19, 19, 19), rgb(19, 19, 19)) !important; background-size: auto !important; background-position: 50% 50% !important; background-attachment: scroll !important; background-repeat: no-repeat !important; padding-right: 0px !important; }[data-css=\"tve-u-95cadb3c8622af\"] img { filter: grayscale(0%) blur(0px); opacity: 1; }[data-css=\"tve-u-115cadb3c862327\"] { padding: 40px 40px 0px 0px !important; margin-top: 0px !important; }[data-css=\"tve-u-105cadb3c8622eb\"] { max-width: 61.9%; }[data-css=\"tve-u-75cadb3c862236\"] { max-width: 38.1%; }[data-css=\"tve-u-55cadb3c8621ad\"] { margin: 0px !important; }[data-css=\"tve-u-65cadb3c8621f4\"] { margin-left: -44px; padding: 0px !important; }[data-css=\"tve-u-65cadb3c8621f4\"] > .tcb-flex-col { padding-left: 44px; }[data-css=\"tve-u-95cadb3c8622af\"] { width: 240px; top: 70px; box-shadow: none; left: 0px; margin-top: 0px !important; margin-bottom: 0px !important; padding-top: 0px !important; display: block; }[data-css=\"tve-u-35cadb3c862135\"] { min-height: 265px !important; }[data-css=\"tve-u-25cadb3c8620f9\"] { background-color: rgb(19, 19, 19) !important; background-image: linear-gradient(rgb(19, 19, 19), rgb(19, 19, 19)) !important; background-size: auto !important; background-position: 50% 50% !important; background-attachment: scroll !important; background-repeat: no-repeat !important; }[data-css=\"tve-u-15cadb3c8620bc\"] { padding: 0px 0px 50px !important; margin-top: 0px !important; }[data-css=\"tve-u-155cadb3c86241a\"] { line-height: 1.4em !important; }[data-css=\"tve-u-145cadb3c8623db\"] { padding: 0px !important; margin-bottom: 20px !important; }:not(#tve) [data-css=\"tve-u-155cadb3c86241a\"] { color: rgb(156, 156, 156) !important; font-family: Cabin !important; font-weight: 400 !important; font-size: 16px !important; }[data-css=\"tve-u-135cadb3c86239f\"] { line-height: 1.2em !important; }:not(#tve) [data-css=\"tve-u-135cadb3c86239f\"] { font-family: \"Allerta Stencil\" !important; font-weight: 400 !important; color: rgb(255, 255, 255) !important; font-size: 26px !important; }[data-css=\"tve-u-125cadb3c862363\"] { max-width: 438px; float: none; padding: 0px !important; margin-bottom: 20px !important; margin-left: auto !important; margin-right: auto !important; }:not(#tve) [data-css=\"tve-u-45cadb3c862171\"]:hover > :first-child { color: rgb(244, 67, 54) !important; }:not(#tve) [data-css=\"tve-u-45cadb3c862171\"]:hover { background-image: linear-gradient(rgba(1, 1, 1, 0.5), rgba(1, 1, 1, 0.5)) !important; background-size: auto !important; background-position: 0px 0px !important; background-attachment: scroll !important; background-repeat: no-repeat !important; }[data-css=\"tve-u-45cadb3c862171\"] { font-size: 14px; width: 14px; height: 14px; color: rgb(255, 255, 255); border: medium none; border-radius: 0px; overflow: hidden; position: absolute; right: 0px; top: 0px; z-index: 10; background-image: linear-gradient(rgba(1, 1, 1, 0.2), rgba(1, 1, 1, 0.2)) !important; padding: 15px !important; background-size: auto !important; background-position: 0px 0px !important; background-attachment: scroll !important; background-repeat: no-repeat !important; margin: 0px !important; }[data-css=\"tve-u-85cadb3c862272\"]::after { clear: both; }}@media (max-width: 1023px){[data-css=\"tve-u-85cadb3c862272\"] { margin: 0px !important; }[data-css=\"tve-u-15cadb3c8620bc\"] { margin-top: 0px !important; }[data-css=\"tve-u-95cadb3c8622af\"] { top: 24px; left: 0px; width: 304px; }}@media (max-width: 767px){[data-css=\"tve-u-25cadb3c8620f9\"] { background-color: rgb(19, 19, 19) !important; }:not(#tve) [data-css=\"tve-u-155cadb3c86241a\"] { font-size: 14px !important; }[data-css=\"tve-u-65cadb3c8621f4\"] { margin-left: 0px; }[data-css=\"tve-u-65cadb3c8621f4\"] > .tcb-flex-col { padding-left: 0px; }:not(#tve) [data-css=\"tve-u-135cadb3c86239f\"] { font-size: 20px !important; }[data-css=\"tve-u-05cadb3c86207a\"] { max-width: 270px !important; padding: 0px !important; background-color: rgba(222, 222, 222, 0.01) !important; }[data-css=\"tve-u-65cadb3c8621f4\"] .tcb-flex-col { flex-basis: 265px !important; }[data-css=\"tve-u-15cadb3c8620bc\"] { margin-top: 0px !important; padding-bottom: 0px !important; }[data-css=\"tve-u-115cadb3c862327\"] { padding: 20px !important; }[data-css=\"tve-u-125cadb3c862363\"] { margin-top: 0px !important; }[data-css=\"tve-u-95cadb3c8622af\"] { width: 100%; left: 0px; top: 0px; }[data-css=\"tve-u-45cadb3c862171\"] { top: 0px; right: 0px; background-image: linear-gradient(rgba(1, 1, 1, 0.48), rgba(1, 1, 1, 0.48)) !important; background-size: auto !important; background-position: 0px 0px !important; background-attachment: scroll !important; background-repeat: no-repeat !important; }}</style><style type=\"text/css\" class=\"tve_global_style\"></style><div class=\"tve-leads-conversion-object\" data-tl-type=\"slide_in\"><div class=\"tve_flt\"><div id=\"tve_editor\" class=\"tve_shortcode_editor\"><div class=\"thrv-leads-slide-in tve_no_drag tve_no_icons thrv_wrapper tve_editor_main_content tve_empty_dropzone\" data-css=\"tve-u-05cadb3c86207a\">\n" +
-//         " <div class=\"thrv_wrapper thrv-page-section\" data-css=\"tve-u-15cadb3c8620bc\">\n" +
-//         " <div class=\"tve-page-section-out\" data-css=\"tve-u-25cadb3c8620f9\"></div>\n" +
-//         " <div class=\"tve-page-section-in tve_empty_dropzone\" data-css=\"tve-u-35cadb3c862135\"><div class=\"thrv_wrapper thrv_icon tcb-icon-display tve_evt_manager_listen tve_et_click tve_ea_thrive_leads_form_close\" data-css=\"tve-u-45cadb3c862171\" data-tcb-events=\"__TCB_EVENT_[{&quot;a&quot;:&quot;thrive_leads_form_close&quot;,&quot;t&quot;:&quot;click&quot;}]_TNEVE_BCT__\" data-tcb_hover_state_parent=\"\" data-float=\"1\">\n" +
-//         " <svg class=\"tcb-icon\" viewBox=\"0 0 30 32\" data-name=\"close\">\n" +
-//         " <path d=\"M0.655 2.801l1.257-1.257 27.655 27.655-1.257 1.257-27.655-27.655z\"></path>\n" +
-//         " <path d=\"M28.31 1.543l1.257 1.257-27.655 27.655-1.257-1.257 27.655-27.655z\"></path>\n" +
-//         " </svg>\n" +
-//         " </div><div class=\"thrv_wrapper thrv-columns\" data-css=\"tve-u-55cadb3c8621ad\"><div class=\"tcb-flex-row tcb-resized v-2 tcb--cols--2\" data-css=\"tve-u-65cadb3c8621f4\"><div class=\"tcb-flex-col\" data-css=\"tve-u-75cadb3c862236\" style=\"\"><div class=\"tcb-col tve_empty_dropzone\" data-css=\"tve-u-85cadb3c862272\"><div class=\"thrv_wrapper tve_image_caption\" data-css=\"tve-u-95cadb3c8622af\"><span class=\"tve_image_frame\" style=\"width: 100%;\"><img class=\"tve_image\" alt=\"Creating a Programming Language\" title=\"Creating a Programming Language\" data-id=\"4854\" src=\"https://tomassetti.me/wp-content/uploads/2018/09/creating-programming-language-640.jpg\" style=\"width: 100%;\" scale=\"0\" width=\"640\" height=\"800\"></span></div></div></div><div class=\"tcb-flex-col\" data-css=\"tve-u-105cadb3c8622eb\" style=\"\"><div class=\"tcb-col tve_empty_dropzone\" data-css=\"tve-u-115cadb3c862327\"><div class=\"thrv_wrapper thrv_heading\" data-tag=\"h2\" data-css=\"tve-u-125cadb3c862363\"><h2 data-css=\"tve-u-135cadb3c86239f\" style=\"text-align: center;\">​Learn to Create Programming Languages</h2></div><div class=\"thrv_wrapper thrv_text_element tve_empty_dropzone\" data-css=\"tve-u-145cadb3c8623db\"><p data-css=\"tve-u-155cadb3c86241a\" style=\"text-align: center;\">Subscribe to ​our ​newsletter to get the FREE email course that teaches you how to create a programming language<br></p></div><div class=\"thrv_wrapper thrv_lead_generation\" data-connection=\"api\" data-css=\"tve-u-165cadb3c862456\"><input type=\"hidden\" class=\"tve-lg-err-msg\" value=\"{&quot;email&quot;:&quot;Email address invalid&quot;,&quot;phone&quot;:&quot;Phone number invalid&quot;,&quot;password&quot;:&quot;Password invalid&quot;,&quot;passwordmismatch&quot;:&quot;Password mismatch error&quot;,&quot;required&quot;:&quot;Required field missing&quot;}\">\n" +
-//         " <div class=\"thrv_lead_generation_container tve_clearfix\">\n" +
-//         " <form action=\"#\" method=\"post\" novalidate=\"novalidate\">\n" +
-//         " <div class=\"tve_lead_generated_inputs_container tve_clearfix tve_empty_dropzone\">\n" +
-//         " <div class=\"tve_lg_input_container tve_lg_input\" data-css=\"tve-u-175cadb3c862493\" data-tcb_hover_state_parent=\"\">\n" +
-//         " <input type=\"email\" data-field=\"email\" data-required=\"1\" data-validation=\"email\" name=\"email\" placeholder=\"Email\" data-placeholder=\"Email\" class=\"\">\n" +
-//         " </div>\n" +
-//         " <div class=\"tve_lg_input_container tve_submit_container tve_lg_submit\" data-css=\"tve-u-185cadb3c8624cf\" data-tcb_hover_state_parent=\"\">\n" +
-//         " <button type=\"submit\" class=\"tve-froala\">I want to create programming languages</button>\n" +
-//         " </div>\n" +
-//         " </div>\n" +
-//         " <input id=\"_submit_option\" type=\"hidden\" name=\"_submit_option\" value=\"redirect\"><input id=\"_back_url\" type=\"hidden\" name=\"_back_url\" value=\"https://tomassetti.me/thank-you\"><input id=\"_autofill\" type=\"hidden\" name=\"_autofill\" value=\"\"><input type=\"hidden\" name=\"__tcb_lg_fc\" id=\"__tcb_lg_fc\" value=\"YToxOntzOjEwOiJjb252ZXJ0a2l0IjtzOjY6IjQ0Mjg1NyI7fQ==\"></form>\n" +
-//         " </div>\n" +
-//         " </div></div></div></div></div></div>\n" +
-//         " </div></div></div></div></div></div></div><script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/js/avia-93d6ec4cf60db7cca150d7e0ad8aa2f7.js\" defer=\"\"></script> <script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/js/shortcodes-a99528795d03cc2b63fdc255d187a939.js\" defer=\"\"></script> <script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/contact/contact-f1cc2fdbf0ca4a2c3a4d22b591d5b71c.js\" defer=\"\"></script> <script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/countdown/countdown-692361e31cf26adda95ef748d233cac2.js\" defer=\"\"></script> <script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/gallery/gallery-c6f142774af7f32ecc5221618be6378f.js\" defer=\"\"></script> <script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/iconlist/iconlist-49208438ba015017defa07c846d67e90.js\" defer=\"\"></script> <script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/magazine/magazine-c8e42a67fb6deb1a8f1e6fa391ca14f2.js\" defer=\"\"></script> <script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/slideshow/slideshow-4e2ef8a1b5c521040e13ed8bbbfa186e.js\" defer=\"\"></script> <script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/slideshow/slideshow-video-ac90ef645ad034c5eefab66fa6a89b34.js\" defer=\"\"></script> <script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/slideshow_layerslider/slideshow_layerslider-afc64a1e242444c675746481007edd51.js\" defer=\"\"></script> <script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/tabs/tabs-7107ae0aa394534972c3ba2fba1386b6.js\" defer=\"\"></script> <script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/testimonials/testimonials-a34346ab10d70074aaa423412acaeea4.js\" defer=\"\"></script> <script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/video/video-8ea131869a7170637e7179f41919b89f.js\" defer=\"\"></script> <script type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/busting/1/wp-includes/js/imagesloaded.min-3.2.0.js\" defer=\"\"></script> <script type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/busting/1/wp-includes/js/masonry.min-3.3.2.js\" defer=\"\"></script> <script type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/busting/1/wp-includes/js/jquery/jquery.masonry.min-3.1.2b.js\" defer=\"\"></script> <script type=\"text/javascript\">/* <![CDATA[ */ var tve_frontend_options = {\"is_editor_page\":\"\",\"page_events\":[],\"is_single\":\"1\",\"ajaxurl\":\"https:\\/\\/tomassetti.me\\/wp-admin\\/admin-ajax.php\",\"social_fb_app_id\":\"\",\"dash_url\":\"https:\\/\\/tomassetti.me\\/wp-content\\/plugins\\/thrive-leads\\/thrive-dashboard\",\"translations\":{\"Copy\":\"Copy\"},\"post_id\":\"6033\",\"ip\":\"159.69.183.149\",\"current_user\":[],\"post_title\":\"Parsing SQL\",\"post_type\":\"post\",\"post_url\":\"https:\\/\\/tomassetti.me\\/parsing-sql\\/\",\"is_lp\":\"\",\"post_request_data\":[]}; /* ]]> */</script> <script type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/busting/1/wp-content/plugins/thrive-leads/tcb/editor/js/dist/frontend.min-2.5.2.2.js\" defer=\"\"></script> <script type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/busting/1/wp-content/plugins/thrive-leads/js/frontend.min-2.2.13.2.js\" defer=\"\"></script> <script type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/busting/1/wp-content/themes/enfold/js/aviapopup/jquery.magnific-popup.min-4.5.7.js\" defer=\"\"></script> <script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/js/avia-snippet-lightbox-af571128e5a33c2149c945f8f248ec6e.js\" defer=\"\"></script> <script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/js/avia-snippet-sticky-header-0003c940c03fb51010c9767adb23a28b.js\" defer=\"\"></script> <script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/js/avia-snippet-cookieconsent-d28d2866b8e8786beac2ca70e78174f7.js\" defer=\"\"></script> <script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/js/avia-snippet-widget-3775c407ef28ce425c794ad4be7c563f.js\" defer=\"\"></script> <script type=\"text/javascript\">/* <![CDATA[ */ var tve_dash_front = {\"ajaxurl\":\"https:\\/\\/tomassetti.me\\/wp-admin\\/admin-ajax.php\",\"force_ajax_send\":\"1\",\"is_crawler\":\"\"}; /* ]]> */</script> <script type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/busting/1/wp-content/plugins/thrive-leads/thrive-dashboard/js/dist/frontend.min-2.2.14.2.js\" defer=\"\"></script> <script type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/busting/1/wp-content/plugins/q2w3-fixed-widget/js/q2w3-fixed-widget.min-5.1.9.js\" defer=\"\"></script> <script type=\"text/javascript\" src=\"//cdnjs.cloudflare.com/ajax/libs/mootools/1.6.0/mootools-core.min.js\"></script> <script type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/busting/1/wp-content/plugins/enlighter/resources/EnlighterJS.min-3.11.0.js\" defer=\"\"></script> <script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/plugins/enlighter/cache/EnlighterJS.init-08b8fc7f4497d8570568ea2382b711c3.js\" defer=\"\"></script> <script data-minify=\"1\" type=\"text/javascript\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/framework/js/conditional_load/avia_google_maps_front-16af321c42711ae8ac9dc4be6671c549.js\" defer=\"\"></script> <script type=\"text/javascript\">var tcb_post_lists=JSON.parse('[]');</script><script type=\"text/javascript\">/* <![CDATA[ */ /*<![CDATA[*/if ( !window.TL_Const ) {var TL_Const={\"security\":\"cf3b3e4dc6\",\"ajax_url\":\"https:\\/\\/tomassetti.me\\/wp-admin\\/admin-ajax.php\",\"forms\":[],\"action_conversion\":\"tve_leads_ajax_conversion\",\"action_impression\":\"tve_leads_ajax_impression\",\"ajax_load\":1,\"main_group_id\":4352,\"display_options\":{\"allowed_post_types\":[],\"flag_url_match\":false},\"shortcode_ids\":[\"4566\"],\"custom_post_data\":[],\"current_screen\":{\"screen_type\":4,\"screen_id\":6033},\"ignored_fields\":[\"email\",\"_captcha_size\",\"_captcha_theme\",\"_captcha_type\",\"_submit_option\",\"_use_captcha\",\"g-recaptcha-response\",\"__tcb_lg_fc\",\"__tcb_lg_msg\",\"_state\",\"_form_type\",\"_error_message_option\",\"_back_url\",\"_submit_option\",\"url\",\"_asset_group\",\"_asset_option\",\"mailchimp_optin\"]};} else {ThriveGlobal.$j.extend(true, TL_Const, {\"security\":\"cf3b3e4dc6\",\"ajax_url\":\"https:\\/\\/tomassetti.me\\/wp-admin\\/admin-ajax.php\",\"forms\":[],\"action_conversion\":\"tve_leads_ajax_conversion\",\"action_impression\":\"tve_leads_ajax_impression\",\"ajax_load\":1,\"main_group_id\":4352,\"display_options\":{\"allowed_post_types\":[],\"flag_url_match\":false},\"shortcode_ids\":[\"4566\"],\"custom_post_data\":[],\"current_screen\":{\"screen_type\":4,\"screen_id\":6033},\"ignored_fields\":[\"email\",\"_captcha_size\",\"_captcha_theme\",\"_captcha_type\",\"_submit_option\",\"_use_captcha\",\"g-recaptcha-response\",\"__tcb_lg_fc\",\"__tcb_lg_msg\",\"_state\",\"_form_type\",\"_error_message_option\",\"_back_url\",\"_submit_option\",\"url\",\"_asset_group\",\"_asset_option\",\"mailchimp_optin\"]})} /*]]> */ /* ]]> */</script><script>(function( $ ) {\n" +
-//         "       \"use strict\";\n" +
-//         " \t\t$(function() {\n" +
-//         " \t\t\tvar $allVideos = $(\"iframe[src^='https://www.youtube.com']\"),\n" +
-//         " \t\t\t    // The element that is fluid width\n" +
-//         " \t\t\t    $fluidEl = $(\".post-entry-type-standard\");\n" +
-//         " \n" +
-//         " \t\t\t\t$allVideos.each(function() {\n" +
-//         " console.log(\"video found\");\n" +
-//         " \t\t\t\t\t$(this)\n" +
-//         " \t\t\t\t\t\t.data('aspectRatio', this.height / this.width)\n" +
-//         " \t\t\t\t\t\t.removeAttr('height')\n" +
-//         " \t\t\t\t\t\t.removeAttr('width')\n" +
-//         " \t\t\t\t\t    .removeAttr('style');\n" +
-//         " \n" +
-//         " \t\t\t\t});\n" +
-//         " \n" +
-//         " \t\t\t\t$(window).resize(function() {\n" +
-//         " \n" +
-//         " \t\t\t\t\tvar newWidth = $fluidEl.width();\n" +
-//         " \t\t\t\t\tvar newHeight = 0;\n" +
-//         " \t\t\t\t\tif(newWidth < 426)\n" +
-//         " \t\t\t\t\t{\n" +
-//         " \t\t\t\t\t\tnewWidth = 426;\n" +
-//         " \t\t\t\t\t\tnewHeight = 240;\n" +
-//         " \t\t\t\t\t}\n" +
-//         " \t\t\t\t\telse if(newWidth >= 426 && newWidth < 640)\n" +
-//         " \t\t\t\t\t{\n" +
-//         " \t\t\t\t\t\tnewWidth = 426;\n" +
-//         " \t\t\t\t\t\tnewHeight = 240;\n" +
-//         " \t\t\t\t\t}\t\t\t\t\t\n" +
-//         " \t\t\t\t\telse if(newWidth >= 640 && newWidth < 768)\n" +
-//         " \t\t\t\t\t{\n" +
-//         " \t\t\t\t\t\tnewWidth = 640;\n" +
-//         " \t\t\t\t\t\tnewHeight = 360;\n" +
-//         " \t\t\t\t\t}\t\t\t\t\t\n" +
-//         " \t\t\t\t\telse if(newWidth >= 768 && newWidth < 800)\n" +
-//         " \t\t\t\t\t{\n" +
-//         " \t\t\t\t\t\tnewWidth = 768;\n" +
-//         " \t\t\t\t\t\tnewHeight = 432;\n" +
-//         " \t\t\t\t\t}\n" +
-//         " \t\t\t\t\telse if(newWidth >= 800 && newWidth < 960)\n" +
-//         " \t\t\t\t\t{\n" +
-//         " \t\t\t\t\t\tnewWidth = 800;\n" +
-//         " \t\t\t\t\t\tnewHeight = 450;\n" +
-//         " \t\t\t\t\t}\n" +
-//         " \t\t\t\t\telse if(newWidth >= 960 && newWidth < 1024)\n" +
-//         " \t\t\t\t\t{\n" +
-//         " \t\t\t\t\t\tnewWidth = 960;\n" +
-//         " \t\t\t\t\t\tnewHeight = 540;\n" +
-//         " \t\t\t\t\t}\n" +
-//         " \t\t\t\t\telse if(newWidth >= 1024 && newWidth < 1280)\n" +
-//         " \t\t\t\t\t{\n" +
-//         " \t\t\t\t\t\tnewWidth = 1024;\n" +
-//         " \t\t\t\t\t\tnewHeight = 576;\n" +
-//         " \t\t\t\t\t}\n" +
-//         " \t\t\t\t\telse if(newWidth >= 1280 && newWidth < 1366)\n" +
-//         " \t\t\t\t\t{\n" +
-//         " \t\t\t\t\t\tnewWidth = 1280;\n" +
-//         " \t\t\t\t\t\tnewHeight = 720;\n" +
-//         " \t\t\t\t\t}\n" +
-//         " \t\t\t\t\telse if(newWidth >= 1366 && newWidth < 1600)\n" +
-//         " \t\t\t\t\t{\n" +
-//         " \t\t\t\t\t\tnewWidth = 1366;\n" +
-//         " \t\t\t\t\t\tnewHeight = 768;\n" +
-//         " \t\t\t\t\t}\n" +
-//         " \t\t\t\t\telse if(newWidth >= 1600 && newWidth < 1920)\n" +
-//         " \t\t\t\t\t{\n" +
-//         " \t\t\t\t\t\tnewWidth = 1600;\n" +
-//         " \t\t\t\t\t\tnewHeight = 900;\n" +
-//         " \t\t\t\t\t}\n" +
-//         " \t\t\t\t\telse if(newWidth >= 1920)\n" +
-//         " \t\t\t\t\t{\n" +
-//         " \t\t\t\t\t\tnewWidth = 1920;\n" +
-//         " \t\t\t\t\t\tnewHeight = 1080;\n" +
-//         " \t\t\t\t\t}\t\t\t\t\t\n" +
-//         " \t\t\t\t\t\n" +
-//         " \t\t\t\t\t$allVideos.each(function() {\n" +
-//         " \n" +
-//         " \t\t\t\t\t\tvar $el = $(this);\n" +
-//         " \t\t\t\t\t\t$el\n" +
-//         " \t\t\t\t\t\t\t.width(newWidth)\n" +
-//         " \t\t\t\t\t\t\t.height(newWidth / 16 * 10);\n" +
-//         " \t\t\t\t\t});\n" +
-//         " \t\t\t\t}).resize();\n" +
-//         " \t\t});\n" +
-//         "   }(jQuery));</script> <script>if(document.cookie.match(/aviaPrivacyGoogleTrackingDisabled/)){ window['ga-disable-UA-11421555-5'] = true; }</script><script>(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){\n" +
-//         " (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),\n" +
-//         " m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)\n" +
-//         " })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');\n" +
-//         " \n" +
-//         " ga('create', 'UA-11421555-5', 'auto', {'allowLinker': true});\n" +
-//         " ga(function(tracker) {\n" +
-//         "       window.cid = tracker.get('clientId');\n" +
-//         " });\n" +
-//         " ga('require', 'linker');\n" +
-//         " ga('linker:autoLink', ['strumenta.com', 'gumroad.com'] ); \n" +
-//         " \n" +
-//         " // anonimizza ip per ottemperare leggi privacy\n" +
-//         " ga('set', 'anonymizeIp', true);\n" +
-//         " \n" +
-//         " // invia visita come solito\n" +
-//         " function delayGALoad(){\n" +
-//         "    if(window.cid !== undefined){\n" +
-//         "        ga('send', 'pageview',{'dimension4':  window.cid});\n" +
-//         "    }else{\n" +
-//         "        setTimeout(delayGALoad,50)\n" +
-//         "    }\n" +
-//         " }\n" +
-//         " delayGALoad();</script><script type=\"text/javascript\" src=\"https://stats.wp.com/e-202017.js\" async=\"async\" defer=\"defer\"></script> <script type=\"text/javascript\">_stq = window._stq || [];\n" +
-//         " \t_stq.push([ 'view', {v:'ext',j:'1:8.4.2',blog:'70090124',post:'6033',tz:'2',srv:'tomassetti.me'} ]);\n" +
-//         " \t_stq.push([ 'clickTrackerInit', '70090124', '6033' ]);</script> <script>window.lazyLoadOptions={elements_selector:\"img[data-lazy-src],.rocket-lazyload\",data_src:\"lazy-src\",data_srcset:\"lazy-srcset\",data_sizes:\"lazy-sizes\",class_loading:\"lazyloading\",class_loaded:\"lazyloaded\",threshold:300,callback_loaded:function(element){if(element.tagName===\"IFRAME\"&&element.dataset.rocketLazyload==\"fitvidscompatible\"){if(element.classList.contains(\"lazyloaded\")){if(typeof window.jQuery!=\"undefined\"){if(jQuery.fn.fitVids){jQuery(element).parent().fitVids()}}}}}};window.addEventListener('LazyLoad::Initialized',function(e){var lazyLoadInstance=e.detail.instance;if(window.MutationObserver){var observer=new MutationObserver(function(mutations){var image_count=0;var iframe_count=0;var rocketlazy_count=0;mutations.forEach(function(mutation){for(i=0;i<mutation.addedNodes.length;i++){if(typeof mutation.addedNodes[i].getElementsByTagName!=='function'){return}\n" +
-//         " if(typeof mutation.addedNodes[i].getElementsByClassName!=='function'){return}\n" +
-//         " images=mutation.addedNodes[i].getElementsByTagName('img');is_image=mutation.addedNodes[i].tagName==\"IMG\";iframes=mutation.addedNodes[i].getElementsByTagName('iframe');is_iframe=mutation.addedNodes[i].tagName==\"IFRAME\";rocket_lazy=mutation.addedNodes[i].getElementsByClassName('rocket-lazyload');image_count+=images.length;iframe_count+=iframes.length;rocketlazy_count+=rocket_lazy.length;if(is_image){image_count+=1}\n" +
-//         " if(is_iframe){iframe_count+=1}}});if(image_count>0||iframe_count>0||rocketlazy_count>0){lazyLoadInstance.update()}});var b=document.getElementsByTagName(\"body\")[0];var config={childList:!0,subtree:!0};observer.observe(b,config)}},!1)</script><script data-no-minify=\"1\" async=\"\" src=\"https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/plugins/wp-rocket/assets/js/lazyload/12.0/lazyload.min.js\"></script><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-grid-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/css/grid-e7f86a4957050d86bbdde2be4b2e329c.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-base-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/css/base-9ee43dd72bee9b2e9372a5d41dfb2cfd.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-layout-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/css/layout-9d9e2151e6dfc7e5f9e836d3932cd249.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-blog-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/blog/blog-18576e4bf2a5d29be26c86a7d9e1c867.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-postslider-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/postslider/postslider-989c704f7f2a809af837b8e670cd0853.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-button-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/buttons/buttons-134ef1e4b4f1459379c2fc85ac863cbe.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-buttonrow-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/buttonrow/buttonrow-e2c888d48bc63472adaaa4f495043db6.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-button-fullwidth-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/buttons_fullwidth/buttons_fullwidth-254d86a461616beaf79576d06cd34c20.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-catalogue-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/catalogue/catalogue-adbb6d96c9a1738e54bee68a79d32810.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-comments-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/comments/comments-8df61ebd5ffecb3e3d2e0f8dfdba3021.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-contact-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/contact/contact-0f3a49a8560a6238f55c9d2127ffeb76.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-countdown-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/countdown/countdown-7afa04e6b150c054d2c4789014570bac.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-gallery-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/gallery/gallery-7700f83f6eb0be9afd295fd2e1293fea.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-gridrow-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/grid_row/grid_row-a75f88bea377b403e886c709b5ad57cf.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-heading-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/heading/heading-b7dddd1ef4275029a57b9a1517182880.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-hr-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/hr/hr-be01ac5c2ab2e5bdbcfbf150e32877e0.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-icon-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/icon/icon-da0406313b8462d480e535bb05f5f50c.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-iconlist-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/iconlist/iconlist-6088b3605f42a243a31c7547c92e7daa.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-image-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/image/image-2da44520fb6135c9345d7a3f78d7f638.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-magazine-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/magazine/magazine-fc5022a0047a03c485f988cd70381467.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-promobox-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/promobox/promobox-0d9df544506622d9978fcde68065845b.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-slideshow-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/slideshow/slideshow-dba83fd5b8d30bff2fd33416275f9c68.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-slideshow-fullsize-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/slideshow_fullsize/slideshow_fullsize-fe118d93c104a09fe9cb8f20f63dadb2.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-slideshow-ls-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/slideshow_layerslider/slideshow_layerslider-a349afb13837bc36afbd868e155babf0.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-social-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/social_share/social_share-e981254c3b50efafac2cc9a1c1b9c905.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-tabs-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/tabs/tabs-a7a217b2cdef7d7317f82ac3ff818c81.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-testimonials-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/testimonials/testimonials-6b29171c1f09c44f76fc7f3b18ff6b98.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-module-video-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/config-templatebuilder/avia-shortcodes/video/video-907cc2ae456a4fc8839931e64a286834.css' type='text/css' media='all' /></noscript><noscript><link rel='stylesheet' id='wp-block-library-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-includes/css/dist/block-library/style.min.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='fi_buttons-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/plugins/feedly-insight/css/fi-buttons-deprecated-25fa38b71a8609678b12c06dbaad2860.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='sb_bar-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/plugins/swifty-bar/public/assets/css/sb-bar-public-bf0134b2d24b0c6e4e6b5423991a6d0f.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='tve_style_family_tve_flt-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/plugins/thrive-leads/tcb/editor/css/thrive_flat-3a109a78ff4eac71f3856ec4009d4665.css' type='text/css' media='all' /></noscript><noscript><link rel='stylesheet' id='tve_leads_forms-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/busting/1/wp-content/plugins/thrive-leads/editor-layouts/css/frontend-2.2.13.2.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-scs-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/css/shortcodes-143bf9025df50d4ca3f24aae5b70c92b.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-popup-css-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/js/aviapopup/magnific-popup-3aba24496166b48da31e47e534851e67.css' type='text/css' media='screen' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-lightbox-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/css/avia-snippet-lightbox-64cad3d2c9d77d18b77c1cf70633f581.css' type='text/css' media='screen' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-cookie-css-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/css/avia-snippet-cookieconsent-bedea0a358c588d449bdd7c4f95a5996.css' type='text/css' media='screen' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-widget-css-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/css/avia-snippet-widget-3bb4c2bac224a946f94a272008eeb881.css' type='text/css' media='screen' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-dynamic-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/uploads/dynamic_avia/tomassetti-214e93ce18069c712a9bbe7dca72a848.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-custom-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/enfold/css/custom-ea2bb2e63ecf88c9937492e1706413c4.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='avia-style-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/themes/tomassetti/style-b224b5538d82adcffaed3add5922da9b.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='easy_table_style-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/plugins/easy-table/themes/default/style-61380df45b9199a4a87f6de0f5c2f6ad.css' type='text/css' media='all' /></noscript><noscript><link rel='stylesheet' id='enlighter-local-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/busting/1/wp-content/plugins/enlighter/resources/EnlighterJS.min-3.11.0.css' type='text/css' media='all' /></noscript><noscript><link data-minify=\"1\" rel='stylesheet' id='jetpack_css-css' href='https://mk0tuzolorusfnc7thxk.kinstacdn.com/wp-content/cache/min/1/wp-content/plugins/jetpack/css/jetpack-cb9b5a4a54629bc9e9f25bd878449a45.css' type='text/css' media='all' /></noscript>\n" +
-//         " <img src=\"https://pixel.wp.com/g.gif?v=ext&amp;j=1%3A8.4.2&amp;blog=70090124&amp;post=6033&amp;tz=2&amp;srv=tomassetti.me&amp;host=tomassetti.me&amp;ref=&amp;fcp=4457&amp;rand=0.3280368187613476\" alt=\":)\" width=\"6\" height=\"5\" id=\"wpstats\"><script type=\"text/javascript\">\n" +
-//         " \t(function ($) {\n" +
-//         " \tvar event_data = {\"form_id\":\"tve-leads-track-slide_in-136\",\"form_type\":\"slide_in\"},\n" +
-//         " \t_percent = 0.2,\n" +
-//         " \t$window = $(window);\n" +
-//         " \tevent_data.source = 'scroll_percent';\n" +
-//         " \t$(function () {\n" +
-//         " \tvar _triggered = false,\n" +
-//         " \t$element = $(\"#tve_leads_end_content\"),\n" +
-//         " \t_check = function () {\n" +
-//         " \tif (_triggered) {\n" +
-//         " \treturn;\n" +
-//         " \t}\n" +
-//         " \n" +
-//         " \tvar _h = $('body').height() - $window.height();\n" +
-//         " \n" +
-//         " \tif ($element.length) {\n" +
-//         " \t_h = $element.offset().top - $window.height();\n" +
-//         " \t}\n" +
-//         " \n" +
-//         " \tif ($window.scrollTop() / _h >= _percent) {\n" +
-//         " \tThriveGlobal.$j(TL_Front).trigger('showform.thriveleads', event_data);\n" +
-//         " \t_triggered = true;\n" +
-//         " \t}\n" +
-//         " \t};\n" +
-//         " \t$window.scroll(_check);\n" +
-//         " \t_check();\n" +
-//         " \t\t/* Chrome has a stupid bug in which it triggers almost simultaneously \"mouseenter\" \"mouseleave\" \"mouseenter\" if the following applies:\n" +
-//         " \t - at page load, the cursor is outside the html element\n" +
-//         " \t - the user moves the cursor over the html element\n" +
-//         " \t */\n" +
-//         " \tvar chrome_fix_id = 0,\n" +
-//         " \tme = function (e) { /* mouse enter */\n" +
-//         " \tclearTimeout(chrome_fix_id);\n" +
-//         " \t},\n" +
-//         " \tml = function (e) {\n" +
-//         " \n" +
-//         " \tif (e.clientY <= config.s) {\n" +
-//         " \tchrome_fix_id = setTimeout(function () {\n" +
-//         " \tif (!_triggered) {\n" +
-//         " \tThriveGlobal.$j(TL_Front).trigger('showform.thriveleads', event_data);\n" +
-//         " \t_triggered = true;\n" +
-//         " \t}\n" +
-//         " \tc();\n" +
-//         " \t}, 50);\n" +
-//         " \t}\n" +
-//         " \t},\n" +
-//         " \tc = function () { // cancel\n" +
-//         " \t$(document).off('mouseenter.exit_intent mouseleave.exit_intent');\n" +
-//         " \t},\n" +
-//         " \tconfig = { // we can adjust this and the code below to allow users to tweak settings\n" +
-//         " \ts: 20 // sensitivity\n" +
-//         " \t};\n" +
-//         " \t$(document).on('mouseleave.exit_intent', ml)\n" +
-//         " \t.on('mouseenter.exit_intent', me);\n" +
-//         " \t\t});\n" +
-//         " \t})\n" +
-//         " (ThriveGlobal.$j);\n" +
-//         " </script><script type=\"text/javascript\">\n" +
-//         " \t(function ($) {\n" +
-//         " \t$(function () {\n" +
-//         " \t\tvar event_data = {\"form_id\":\"tve-leads-track-shortcode_4566\",\"form_type\":\"shortcode\"};\n" +
-//         " \t\tevent_data.source = 'page_load';\n" +
-//         " \t\tsetTimeout(function () {\n" +
-//         " \t\t\tThriveGlobal.$j(TL_Front).trigger('showform.thriveleads', event_data);\n" +
-//         " \t\t\t}, 200);\n" +
-//         " \t\t});\n" +
-//         " \t})\n" +
-//         " (ThriveGlobal.$j);\n" +
-//         " </script><script type=\"text/javascript\">var TVE_Event_Manager_Registered_Callbacks = TVE_Event_Manager_Registered_Callbacks || {};TVE_Event_Manager_Registered_Callbacks.thrive_leads_form_close = function(t, a, c){TL_Front.close_form(this, t, a, c); return false;};</script><link rel=\"stylesheet\" href=\"https://tomassetti.me/wp-admin/load-styles.php?c=1&amp;dir=ltr&amp;load%5Bchunk_0%5D=dashicons,wp-jquery-ui-dialog&amp;ver=5.4\" type=\"text/css\" media=\"all\">\n" +
-//         " <link rel=\"stylesheet\" id=\"avia-media-style-css\" href=\"https://tomassetti.me/wp-content/themes/enfold/config-templatebuilder/avia-template-builder/assets/css/avia-media.css?ver=5.4\" media=\"all\">\n" +
-//         " <link rel=\"stylesheet\" id=\"post-snippets-icons-css\" href=\"https://tomassetti.me/wp-content/plugins/post-snippets/assets/features.css?ver=3.0.18\" media=\"all\">\n" +
-//         " <link rel=\"stylesheet\" id=\"post-snippets-features-css\" href=\"https://tomassetti.me/wp-content/plugins/post-snippets/assets/icons.css?ver=3.0.18\" media=\"all\">\n" +
-//         " <link rel=\"stylesheet\" id=\"post-snippets-newsletter-css\" href=\"https://tomassetti.me/wp-content/plugins/post-snippets/assets/newsletter.css?ver=3.0.18\" media=\"all\">\n" +
-//         " <link rel=\"stylesheet\" id=\"post-snippets-css\" href=\"https://tomassetti.me/wp-content/plugins/post-snippets/assets/post-snippets.css?ver=3.0.18\" media=\"all\">\n" +
-//         " <script type=\"text/javascript\">var tcb_post_lists=JSON.parse('[]');</script>"
-//     );
-// }
-// let s2="<div><div><ol><li>fuck</li><li><a href='/www/aaa.html'>fuck a</a></li></ol></div></div>"
-//
-// console.log(simply(getS1(),async (a)=>a))
+    console.log(r)
+    console.log("done")
+}
+
+// (async ()=>{
+//    await test();
+// })()
+

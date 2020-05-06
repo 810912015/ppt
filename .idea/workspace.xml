@@ -2,20 +2,10 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="8c3106c3-9a4c-441c-86ef-182e161f5db7" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/better-dev-20200423-1.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/better-dev-20200423-2.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/better-dev-20200423-3.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/better-dev-20200423-5.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/better-dev-20200423-6.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/better-dev-20200423-7.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/better-dev-20200423-8.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/better-dev-20200423-9.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/better-dev-20200423.txt" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/betterdev.js" beforeDir="false" afterPath="$PROJECT_DIR$/betterdev.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/betterdev.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/result.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/gtrans.js" beforeDir="false" afterPath="$PROJECT_DIR$/gtrans.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hp2t.js" beforeDir="false" afterPath="$PROJECT_DIR$/hp2t.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -52,6 +42,8 @@
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="nodejs_interpreter_path.stuck_in_default_project" value="undefined stuck path" />
     <property name="nodejs_npm_path_reset_for_default_project" value="true" />
+    <property name="nodejs_package_manager_path" value="npm" />
+    <property name="ts.external.directory.path" value="D:\Program Files\JetBrains\IntelliJ IDEA 2019.3.4\plugins\JavaScriptLanguage\jsLanguageServicesImpl\external" />
   </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
@@ -85,7 +77,10 @@
       <workItem from="1587773204150" duration="10322000" />
       <workItem from="1587783663042" duration="5930000" />
       <workItem from="1587857106300" duration="1212000" />
-      <workItem from="1587942101767" duration="6871000" />
+      <workItem from="1587942101767" duration="20523000" />
+      <workItem from="1588289201890" duration="6453000" />
+      <workItem from="1588380802113" duration="4801000" />
+      <workItem from="1588721276974" duration="17186000" />
     </task>
     <servers />
   </component>

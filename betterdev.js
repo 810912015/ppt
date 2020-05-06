@@ -2,116 +2,7 @@ const {log,start}=require("./pbp")
 const parser=require("node-html-parser")
 const gtrans =require("./gtrans")
 const htmlparser=require("htmlparser2")
-const simplifier=require("./hp2t")
 let fs=require('fs')
-
-
-const htmlparser2 = require("htmlparser2");
-const tags={
-    html:"",
-    cfg:{
-        ignore: {
-            noscript: true,
-            script:true,
-            form:true,
-            input:true,
-            label:true,
-            button:true,
-            style:true,
-            footer:true,
-            link:true
-        },
-        untouch:{
-            pre:true,
-            code:true,
-            svg:true
-        },
-        attr:{
-            a:["href"],
-            img:["src","alt"]
-        },
-
-    },
-    include:true,
-    untouch:false
-};
-function isIgnore(name) {
-    return name in tags.cfg.ignore;
-}
-function isUntouch(name) {
-    return name in tags.cfg.untouch;
-}
-function writeOpen(name,attrs) {
-    if(!(name in tags.cfg.attr)&&!isUntouch(name)&&!tags.untouch) return;
-    tags.html+="<";
-    tags.html+=name;
-    if(name in tags.cfg.attr){
-        let ta=tags.cfg.attr[name];
-        ta.forEach(a=>{
-            if(a in attrs){
-                tags.html+=" "+a+"='"+attrs[a]+"'"
-            }
-        })
-    }else if(tags.untouch){
-        if(name!="pre"&&name!="code"){
-            for(a in attrs){
-                tags.html+=" "+a+"='"+attrs[a]+"'"
-            }
-        }
-
-    }
-    tags.html+=">"
-}
-
-async function simply(str,tf) {
-    tags.html="";
-    const parser = new htmlparser2.Parser(
-        {
-            onopentag(name, attribs) {
-                if(isIgnore(name)){
-                    tags.include=false
-                    return;
-                }
-                if(isUntouch(name)){
-                    tags.untouch=true;
-                }
-                writeOpen(name,attribs)
-            },
-            async ontext(text) {
-                if(tags.include) {
-                    let tr;
-                    if(tf){
-                        tr=await tf(text);
-                    }else{
-                        tr=text;
-                    }
-                    tags.html += text;
-                }
-            },
-            onclosetag(name) {
-                if(isIgnore(name)){
-                    tags.include=true
-                    return;
-                }
-                if(isUntouch(name)){
-                    tags.untouch=false;
-                }
-                if(tags.untouch||(name in tags.cfg.attr)||name in tags.cfg.untouch){
-                    tags.html+="</"+name+">";
-                }else{
-                    if(!tags.html.endsWith("\n")){
-                        tags.html+="\n";
-                    }
-                }
-            }
-        },
-        { decodeEntities: true }
-    );
-    parser.write(str);
-    parser.end();
-    let r=tags.html;
-    return r;
-}
 
 async function transSingle(page,str){
     return await gtrans.translate(page, str).catch((e)=>str);
@@ -120,48 +11,52 @@ async function transSingle(page,str){
 async function transArray(page,sa){
     let code=false;
     let r="";
+    let mr="";
     let cache={};
     for(let i=0;i<sa.length;i++){
         let t=sa[i];
+        let tmr="";
         if(!t||t.indexOf(">")>-1||t.indexOf("<")>-1){
             log("trans step:empty or element ",i,sa.length,t)
-            r+="\n"
+            tmr="\n"
             continue
-        }
-        let isCode=t.indexOf("<code>")>-1||t.indexOf("</code>")>-1||
-            t.indexOf("<pre>")>-1||t.indexOf("</pre>")>-1||t.indexOf("<ol>")>-1||t.indexOf("</ol>")>-1
+        }else {
+            let isCode = t.indexOf("<code>") > -1 || t.indexOf("</code>") > -1 ||
+                t.indexOf("<pre>") > -1 || t.indexOf("</pre>") > -1 || t.indexOf("<ol>") > -1 || t.indexOf("</ol>") > -1
 
-        if(!code){
-            if(isCode){
-                code=true;
-                r+=t;
-                log("trans step ",i,sa.length,code,isCode,t)
-            }else{
-                let tr;
-                if(t in cache){
-                    tr=cache[t]
-                }else {
-                    tr = await transSingle(page,t).catch((e)=>t);
-                    cache[t]=tr;
+            if (!code) {
+                if (isCode) {
+                    code = true;
+                    tmr= t;
+                    log("trans step ", i, sa.length, code, isCode, t)
+                } else {
+                    let tr;
+                    if (t in cache) {
+                        tr = cache[t]
+                    } else {
+                        tr = await transSingle(page, t).catch((e) => t);
+                        cache[t] = tr;
+                    }
+                    log("trans step ", i, sa.length, code, isCode, t, tr)
+                    tmr= tr;
                 }
-                log("trans step ",i,sa.length,code,isCode,t,tr)
-                r+=tr;
-            }
-        }else{
-            if(isCode){
-                code=false;
-                log("trans step ",i,sa.length,code,isCode,t)
-                r+=t;
-            }else{
-                log("trans step ",i,sa.length,code,isCode,t)
-                r+=t;
-            }
+            } else {
+                if (isCode) {
+                    code = false;
+                    log("trans step ", i, sa.length, code, isCode, t)
+                    tmr= t;
+                } else {
+                    log("trans step ", i, sa.length, code, isCode, t)
+                    tmr= t;
+                }
 
+            }
         }
-        r+="\n"
+        mr+=t+"\n"+tmr+"\n"
+        r+=tmr+"\n"
     }
     log("translated",r);
-    return r;
+    return [r,mr];
 }
 
 async function transByLine(page,str){
@@ -170,10 +65,10 @@ async function transByLine(page,str){
     return await transArray(page,sa);
 }
 
-async function getLinks(page){
-    return await page.evaluate(()=>{
+async function getLinks(page,pattern){
+    return await page.evaluate((p)=>{
         let r=[]
-        document.querySelectorAll("div > a")
+        document.querySelectorAll(p)
             .forEach(a=>{
                 if((!!a.outerText)&&a.href.indexOf("github")<0&&
                     a.href.indexOf("youtube")<0&&
@@ -188,17 +83,37 @@ async function getLinks(page){
                 }
             })
         return r;
-    }).catch(a=>[])
+    },pattern).catch(a=> {
+        log("error in get link",a)
+        return [];
+    })
 }
-
-async function spideOne(url,fn,shouldTrans) {
-    log("begin",url)
+const ps={
+    "https://stratechery.com":"header > h1 > a",
+    "https://lobste.rs":".u-url",
+    "https://betterdev.link":"div > a"
+}
+async function spideOne(url,fn,shouldTrans,ls) {
+    log("begin",url,ls)
     let bp=await start(true);
     
     let page=bp.page;
+
+    if(ls&&ls.length){
+        for(let i=0;i<ls.length;i++){
+            await makeByLink(ls[i],i)
+        }
+    }
+
+    if(!url) return ;
+
     await page.goto(url,{timeout:0})
-    log("opened",url)
-    let links=await getLinks(page).catch(a=>[])
+    log("opened",url,ps[url])
+    let links=await getLinks(page,ps[url]);
+    if(!links||!links.length) {
+        log("no links",links)
+        return
+    }
     log("links done",links.length)
     let r=links;
 
@@ -213,24 +128,23 @@ async function spideOne(url,fn,shouldTrans) {
             lowerCaseTagName:true,
             script:false,
             style:false,
-            pre:true,
+            pre:false,
             comment:false
         });
         return root.structuredText;
     }
     async function getCText(t) {
         let gt=await gtrans.prepare();
-        t.cname=await gtrans.translate(gt.page, t.n);
+        if(t.n) {
+            t.cname = await gtrans.translate(gt.page, t.n);
+        }
         if(!t.text){
             return ;
         }
-        t.ctext=await transByLine(gt.page,t.text);
+        let tr=await transByLine(gt.page,t.text);
+        t.ctext=tr[0]
+        t.cMixText=tr[1]
         await gt.browser.close();
-    }
-
-    function parseHtml2(html){
-        let r= simplifier.simply(html);
-        return r;
     }
 
     async function makeByHtml(t) {
@@ -251,60 +165,123 @@ async function spideOne(url,fn,shouldTrans) {
         })
     }
 
-    for(let i=0;i<r.length;i++){
-        let t=r[i];
+    async function makeByLink(t,i) {
         let pt=await bp.browser.newPage().catch(a=>null);
-        if(pt==null) continue;
+        if(pt==null) return ;
         try{
             t.html=await getHtml(pt,t).catch(a=>"");
             await makeByHtml(t).catch(a=>{t=null});
-            if(t==null) continue;
+            if(t==null) return ;
             save(t,i);
         }catch(e){
-            log(i,r[i],e)
+            log(i,t,e)
         }finally{
             pt.close();
         }
-    }   
+    }
+
+    for(let i=0;i<r.length;i++){
+        let t=r[i];
+        await makeByLink(t,i);
+    }
+
    
     log("file done")
     //await bp.browser.close();
 }
 
+function createToday(){
+    let dn="result/"+new Date().toLocaleDateString()+"/"
+    let fs=require("fs")
+    fs.stat(dn,function (e) {
+        if(e){
+            fs.mkdir(dn,function (e1) {
+                if(e1){
+                    log("mkdir",e1)
+                }
+            })
+        }
+    })
+    return dn;
+}
 
+function getPrm(){
+    let args=process.argv.splice(2);
+    let shouldTrans=false;
+    if(args.length>0){
+        shouldTrans=!!args[0]
+    }
+    if(args.length>1) {
+        let bySummary = args[1] === "-s"
+        let byContent = args[1] === "-c"
+        let urls = []
+        if(args.length>2) {
+            for (let i = 2; i < args.length; i++) {
+                if (bySummary) {
+                    urls.push(args[i])
+                } else if (byContent) {
+                    urls.push({
+                        l: args[i]
+                    })
+                }
+            }
+        }
+        return {
+            shouldTrans: shouldTrans,
+            byContent: byContent,
+            bySummary: bySummary,
+            urls: urls
+        }
+    }
+    return shouldTrans;
+}
 
 (async ()=>{
+    //汇总类地址：只包含链接地址的页面
     const targets=[
+        "https://betterdev.link",
         "https://stratechery.com",
         "https://lobste.rs",
     ]
-    let arguments = process.argv.splice(2);
+    //内容类地址：文章内容地址，l:链接地址，n:name，注意按格式
+    const singleLinks=[
+        // {
+        //     l:"https://sookocheff.com/post/networking/how-does-dns-work/",
+        //     n:"How Does DNS Work?"
+        // }
+    ]
+
+    let p=getPrm();
+
+    let dn=createToday();
     let shouldTrans=false;
-    if(arguments.length>0){
-        shouldTrans=!!arguments[0]
-    }
-    for(let i=0;i<targets.length;i++){
-        let url=targets[i]
-        let dn="result/"+new Date().toLocaleDateString()+"/"
-        let fs=require("fs")
-        fs.stat(dn,function (e) {
-            if(e){
-                fs.mkdir(dn,function (e1) {
-                    if(e1){
-                        log("mkdir",e1)
-                    }
+    if(typeof p==="boolean"){
+        shouldTrans=p;
+        if(singleLinks.length>0){
+            await spideOne(null,dn+"links.txt",shouldTrans,singleLinks)
+        }
+        if(targets.length>0) {
+            for (let i = 0; i < targets.length; i++) {
+                let url = targets[i]
+                let fn = dn
+                    + url.substr(8)
+                        .replace(".", "_")
+                        .replace("\\", "")
+                        .replace("/", "")
+                    + ".txt"
+                await spideOne(url, fn, shouldTrans).catch(a => {
+                    log("error", i, a);
                 })
             }
-        })
-        let fn=dn
-            +url.substr(8)
-            .replace(".","_")
-            .replace("\\","")
-            .replace("/","")
-            +".txt"
-        await spideOne(url,fn,shouldTrans).catch(a=>{
-            log("error",i,a);
-        })
+        }
+    }else{
+        if(p.byContent){
+            await spideOne(null,dn+"summary.txt",p.shouldTrans,p.urls)
+        }else if(p.bySummary){
+            await spideOne(p.urls,dn+"content.txt",p.shouldTrans)
+        }
     }
+
+
 
 })()

@@ -46,7 +46,7 @@ async function prepare(){
 module.exports={prepare,translate}
 // (async ()=>{      
 //     const b=await prepare();
-//     var arguments = process.argv.splice(2);
+//
 //     //await page.type("#source","The requirements for the RTX Voice App are fairly simple. You must own a Geforce or Quadro based RTX GPU (the tool presumably uses the AI Tensor cores on NVIDIA RTX cards). Secondly, your driver version must be 410.18 or newer. Of course, you must have a mic as well. The application is much more advanced than software-based noise cancellation features offered by Teams and Discord as it relies on AI technology to remove noise from given voice samples. To give you an idea of just how good it is, hear how it handles the removal of a sound gamers are very familiar with: mechanical keyboards.")
 //     for(let i=0;i<arguments.length;i++){
 //         let a=arguments[i]
