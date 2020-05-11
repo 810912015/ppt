@@ -5,7 +5,6 @@
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/betterdev.js" beforeDir="false" afterPath="$PROJECT_DIR$/betterdev.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/gtrans.js" beforeDir="false" afterPath="$PROJECT_DIR$/gtrans.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hp2t.js" beforeDir="false" afterPath="$PROJECT_DIR$/hp2t.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -80,7 +79,11 @@
       <workItem from="1587942101767" duration="20523000" />
       <workItem from="1588289201890" duration="6453000" />
       <workItem from="1588380802113" duration="4801000" />
-      <workItem from="1588721276974" duration="17186000" />
+      <workItem from="1588721276974" duration="17892000" />
+      <workItem from="1588812421775" duration="1189000" />
+      <workItem from="1588895342822" duration="36000" />
+      <workItem from="1589084488089" duration="6387000" />
+      <workItem from="1589159964390" duration="9000" />
     </task>
     <servers />
   </component>

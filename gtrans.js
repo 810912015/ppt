@@ -11,7 +11,9 @@ async function translate(page,str){
     const r=await page.evaluate(()=>
        document.querySelector(".tlid-translation").innerText
     )
+    if(r==="翻译时出错") return r;
     if(!!r&&r.indexOf("...")<0) return r;
+
     for(let i=0;i<20;i++){
         await page.waitFor(td);
         const r1=await page.evaluate(()=>{

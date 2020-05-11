@@ -109,7 +109,7 @@ async function spideOne(url,fn,shouldTrans,ls) {
 
     await page.goto(url,{timeout:0})
     log("opened",url,ps[url])
-    let links=await getLinks(page,ps[url]);
+    let links=await getLinks(page,ps[url]||"a");
     if(!links||!links.length) {
         log("no links",links)
         return
@@ -278,7 +278,9 @@ function getPrm(){
         if(p.byContent){
             await spideOne(null,dn+"summary.txt",p.shouldTrans,p.urls)
         }else if(p.bySummary){
-            await spideOne(p.urls,dn+"content.txt",p.shouldTrans)
+            for(let i=0;i<p.urls.length;i++){
+                await spideOne(p.urls[i],dn+"content.txt",p.shouldTrans)
+            }
         }
     }
 
