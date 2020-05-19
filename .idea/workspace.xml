@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="8c3106c3-9a4c-441c-86ef-182e161f5db7" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/pl-visitor.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/betterdev.js" beforeDir="false" afterPath="$PROJECT_DIR$/betterdev.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/gtrans.js" beforeDir="false" afterPath="$PROJECT_DIR$/gtrans.js" afterDir="false" />
@@ -38,7 +39,7 @@
     <property name="WebServerToolWindowFactoryState" value="false" />
     <property name="aspect.path.notification.shown" value="true" />
     <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1560946575997" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/../weixin-sdk-demo" />
     <property name="nodejs_interpreter_path.stuck_in_default_project" value="undefined stuck path" />
     <property name="nodejs_npm_path_reset_for_default_project" value="true" />
     <property name="nodejs_package_manager_path" value="npm" />
@@ -84,6 +85,10 @@
       <workItem from="1588895342822" duration="36000" />
       <workItem from="1589084488089" duration="6387000" />
       <workItem from="1589159964390" duration="9000" />
+      <workItem from="1589182472342" duration="1643000" />
+      <workItem from="1589502321553" duration="3034000" />
+      <workItem from="1589528658491" duration="2038000" />
+      <workItem from="1589844003629" duration="4984000" />
     </task>
     <servers />
   </component>
@@ -91,6 +96,10 @@
     <option name="version" value="2" />
   </component>
   <component name="WindowStateProjectService">
+    <state x="740" y="275" key="FileChooserDialogImpl" timestamp="1589511713753">
+      <screen x="0" y="0" width="1920" height="1040" />
+    </state>
+    <state x="740" y="275" key="FileChooserDialogImpl/0.0.1920.1040@0.0.1920.1040" timestamp="1589511713753" />
     <state x="826" y="221" key="RollbackChangesDialog" timestamp="1587942648062">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>

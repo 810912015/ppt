@@ -1,7 +1,6 @@
 const {log,start}=require("./pbp")
 const parser=require("node-html-parser")
 const gtrans =require("./gtrans")
-const htmlparser=require("htmlparser2")
 let fs=require('fs')
 
 async function transSingle(page,str){
