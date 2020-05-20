@@ -92,7 +92,8 @@ const ps={
     "https://lobste.rs":".u-url",
     "https://betterdev.link":"div > a"
 }
-async function spideOne(url,fn,shouldTrans,ls) {
+async function spideOne(ops) {
+    let {url,fn,shouldTrans,ls,pattern,report,to}=ops
     log("begin",url,ls)
     let bp=await start(true);
     
@@ -100,15 +101,19 @@ async function spideOne(url,fn,shouldTrans,ls) {
 
     if(ls&&ls.length){
         for(let i=0;i<ls.length;i++){
-            await makeByLink(ls[i],i)
+            await makeByLink({l:ls[i]},i)
         }
+        await bp.browser.close();
     }
 
-    if(!url) return ;
+    if(!url){
+        await bp.browser.close();
+        return ;
+    }
 
     await page.goto(url,{timeout:0})
     log("opened",url,ps[url])
-    let links=await getLinks(page,ps[url]||"a");
+    let links=await getLinks(page,pattern||ps[url]||"a");
     if(!links||!links.length) {
         log("no links",links)
         return
@@ -117,7 +122,7 @@ async function spideOne(url,fn,shouldTrans,ls) {
     let r=links;
 
     async function getHtml(pt,t) {
-        await pt.goto(t.l, {timeout: 60000})
+        await pt.goto(t.l, {timeout: 0})
         let html = await pt.evaluate(() => document.querySelector("body").innerHTML)
         return html;
     }
@@ -154,6 +159,45 @@ async function spideOne(url,fn,shouldTrans,ls) {
 
     }
 
+    function callWebService(t) {
+        let http=require('http')
+
+        let data={
+            url:t.l,
+            json:JSON.stringify(t)
+        }
+
+        let content=JSON.stringify(data)
+        log("before",t,data,content)
+        let ops={
+            hostname:to,
+            port:8081,
+            path:"/admin/translate/done",
+            method:"POST",
+            headers:{
+                "Content-Type":"application/json;charset=UTF-8"
+            }
+        }
+        let req = http.request(ops, function (res) {
+            console.log('STATUS: ' + res.statusCode);
+            console.log('HEADERS: ' + JSON.stringify(res.headers));
+            res.setEncoding('utf8');
+            res.on('data', function (chunk) {
+                console.log('BODY: ' + chunk);
+                //JSON.parse(chunk)
+            });
+        });
+
+        req.on('error', function (e) {
+            console.log('problem with request: ' + e.message);
+        });
+
+// write data to request body
+        req.write(content);
+
+        req.end();
+    }
+
     function save(t,i) {
         fs.appendFile(fn,JSON.stringify(t)+"\n\n",(e)=>{
             if(e){
@@ -166,12 +210,25 @@ async function spideOne(url,fn,shouldTrans,ls) {
 
     async function makeByLink(t,i) {
         let pt=await bp.browser.newPage().catch(a=>null);
-        if(pt==null) return ;
+        if(pt==null) {
+            return ;
+        }
         try{
-            t.html=await getHtml(pt,t).catch(a=>"");
+            t.html=await getHtml(pt,t).catch(a=> {
+                log(a)
+                return "";
+            });
+
             await makeByHtml(t).catch(a=>{t=null});
-            if(t==null) return ;
-            save(t,i);
+            if(t==null){
+                return ;
+            }
+
+            if(report){
+                callWebService(t);
+            }else {
+                save(t, i);
+            }
         }catch(e){
             log(i,t,e)
         }finally{
@@ -183,10 +240,8 @@ async function spideOne(url,fn,shouldTrans,ls) {
         let t=r[i];
         await makeByLink(t,i);
     }
-
-   
     log("file done")
-    //await bp.browser.close();
+    await bp.browser.close();
 }
 
 function createToday(){
@@ -206,83 +261,49 @@ function createToday(){
 
 function getPrm(){
     let args=process.argv.splice(2);
-    let shouldTrans=false;
-    if(args.length>0){
-        shouldTrans=!!args[0]
-    }
-    if(args.length>1) {
-        let bySummary = args[1] === "-s"
-        let byContent = args[1] === "-c"
-        let urls = []
-        if(args.length>2) {
-            for (let i = 2; i < args.length; i++) {
-                if (bySummary) {
-                    urls.push(args[i])
-                } else if (byContent) {
-                    urls.push({
-                        l: args[i]
-                    })
-                }
+    let cmd={}
+    let prm=[]
+    args.map(a=>{
+        if(a.startsWith("-")){
+            let ta=a.substr(1);
+            if(ta.indexOf("=")>-1){
+                let arr=ta.split("=")
+                cmd[arr[0]]=arr[1]
+            }else{
+                cmd[ta]=""
             }
+        }else{
+            prm.push(a)
         }
-        return {
-            shouldTrans: shouldTrans,
-            byContent: byContent,
-            bySummary: bySummary,
-            urls: urls
-        }
+    })
+    return {
+        shouldTrans: "t" in cmd,
+        byContent: "c" in cmd,
+        bySummary: "s" in cmd,
+        pattern:"p" in cmd&&cmd["p"],
+        report:"r" in cmd,
+        to:"to" in cmd&&cmd["to"],
+        urls: prm
     }
-    return shouldTrans;
 }
-
+// for example
+// node betterdev.js -t -s -p="div > a" https://betterdev.link -r -to="192.168.16.102"
+// node betterdev.js -c -r -to="192.168.16.102" https://blog.cloudflare.com/when-bloom-filters-dont-bloom/
+// -t should translate
+// -s is by summary
+// -c is by content
+// -r is report to web service
+// -to web service url
+// -p url pattern,used when have -s,default is "a"
+// url the url to fetch
 (async ()=>{
-    //汇总类地址：只包含链接地址的页面
-    const targets=[
-        "https://betterdev.link",
-        "https://stratechery.com",
-        "https://lobste.rs",
-    ]
-    //内容类地址：文章内容地址，l:链接地址，n:name，注意按格式
-    const singleLinks=[
-        // {
-        //     l:"https://sookocheff.com/post/networking/how-does-dns-work/",
-        //     n:"How Does DNS Work?"
-        // }
-    ]
-
     let p=getPrm();
-
     let dn=createToday();
-    let shouldTrans=false;
-    if(typeof p==="boolean"){
-        shouldTrans=p;
-        if(singleLinks.length>0){
-            await spideOne(null,dn+"links.txt",shouldTrans,singleLinks)
-        }
-        if(targets.length>0) {
-            for (let i = 0; i < targets.length; i++) {
-                let url = targets[i]
-                let fn = dn
-                    + url.substr(8)
-                        .replace(".", "_")
-                        .replace("\\", "")
-                        .replace("/", "")
-                    + ".txt"
-                await spideOne(url, fn, shouldTrans).catch(a => {
-                    log("error", i, a);
-                })
-            }
-        }
-    }else{
         if(p.byContent){
-            await spideOne(null,dn+"summary.txt",p.shouldTrans,p.urls)
+            await spideOne({url:null,fn:dn+"summary.txt",shouldTrans:p.shouldTrans,ls:p.urls,report:p.report,to:p.to}).catch((a)=>log(a))
         }else if(p.bySummary){
             for(let i=0;i<p.urls.length;i++){
-                await spideOne(p.urls[i],dn+"content.txt",p.shouldTrans)
+                await spideOne({url:p.urls[i],fn:dn+"content.txt",shouldTrans:p.shouldTrans,pattern:p.pattern,report:p.report,to:p.to}).catch((a)=>log(a))
             }
         }
-    }
-
-
-
 })()
