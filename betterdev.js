@@ -286,24 +286,16 @@ function getPrm(){
         urls: prm
     }
 }
-// for example
-// node betterdev.js -t -s -p="div > a" https://betterdev.link -r -to="192.168.16.102"
-// node betterdev.js -c -r -to="192.168.16.102" https://blog.cloudflare.com/when-bloom-filters-dont-bloom/
-// -t should translate
-// -s is by summary
-// -c is by content
-// -r is report to web service
-// -to web service url
-// -p url pattern,used when have -s,default is "a"
-// url the url to fetch
-(async ()=>{
-    let p=getPrm();
+
+async function makeArticle(p) {
     let dn=createToday();
-        if(p.byContent){
-            await spideOne({url:null,fn:dn+"summary.txt",shouldTrans:p.shouldTrans,ls:p.urls,report:p.report,to:p.to}).catch((a)=>log(a))
-        }else if(p.bySummary){
-            for(let i=0;i<p.urls.length;i++){
-                await spideOne({url:p.urls[i],fn:dn+"content.txt",shouldTrans:p.shouldTrans,pattern:p.pattern,report:p.report,to:p.to}).catch((a)=>log(a))
-            }
+    if(p.byContent){
+        await spideOne({url:null,fn:dn+"summary.txt",shouldTrans:p.shouldTrans,ls:p.urls,report:p.report,to:p.to}).catch((a)=>log(a))
+    }else if(p.bySummary){
+        for(let i=0;i<p.urls.length;i++){
+            await spideOne({url:p.urls[i],fn:dn+"content.txt",shouldTrans:p.shouldTrans,pattern:p.pattern,report:p.report,to:p.to}).catch((a)=>log(a))
         }
-})()
+    }
+}
+
+module.exports={makeArticle,getPrm}
