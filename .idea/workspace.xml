@@ -2,11 +2,8 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="8c3106c3-9a4c-441c-86ef-182e161f5db7" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/maker.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/betterdev.js" beforeDir="false" afterPath="$PROJECT_DIR$/betterdev.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/maker.js" beforeDir="false" afterPath="$PROJECT_DIR$/maker.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -91,7 +88,8 @@
       <workItem from="1589528658491" duration="2038000" />
       <workItem from="1589844003629" duration="4984000" />
       <workItem from="1589927707261" duration="11574000" />
-      <workItem from="1590019522914" duration="5648000" />
+      <workItem from="1590019522914" duration="6411000" />
+      <workItem from="1590104031406" duration="4812000" />
     </task>
     <servers />
   </component>

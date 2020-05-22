@@ -5,7 +5,6 @@ const port = 7070
 
 app.post('/translate', (req, res) => {
     req.on('data',function(data){
-
         let obj=JSON.parse(data);
         if(!obj||!obj.url){
             res.json({success:false,msg:"url required"})
@@ -27,4 +26,4 @@ app.post('/translate', (req, res) => {
         res.json({success:true})
     })
 })
-app.listen(port, () => console.log(`Example app listening on port ${port}!`))
+app.listen(port, () => console.log(`Translator listening on port ${port}!`))
