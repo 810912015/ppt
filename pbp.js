@@ -5,8 +5,7 @@ function log(){
 }
 
 async function start(hl){
-    //console.log(hl,hl||false)
-    const browser=await pt.launch({headless:(hl||false)});
+    const browser=await pt.launch({headless:(hl||false),args:['--no-sandbox']});
     const page=await browser.newPage();
     await page.setUserAgent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36")
     await page.setRequestInterception(true);

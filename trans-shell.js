@@ -1,4 +1,4 @@
-const maker=require('./betterdev.js')
+const maker=require('./betterdev.js');
 
 // for example
 // node betterdev.js -t -s -p="div > a" https://betterdev.link -r -to="192.168.16.102"

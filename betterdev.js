@@ -245,7 +245,7 @@ async function spideOne(ops) {
 }
 
 function createToday(){
-    let dn="result/"+new Date().toLocaleDateString()+"/"
+    let dn="result/"+new Date().getTime().toString()+"/"
     let fs=require("fs")
     fs.stat(dn,function (e) {
         if(e){
