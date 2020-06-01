@@ -27,4 +27,7 @@ app.post('/translate', (req, res) => {
         res.json({success:true})
     })
 })
+app.get("/health",(req,res)=>{
+    res.json({live:"on"})
+})
 app.listen(port, () => console.log(`Translator listening on port ${port}!`))

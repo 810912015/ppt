@@ -295,7 +295,7 @@ async function makeArticle(p) {
     if(p.byContent){
         let tu={url:null,fn:dn+"summary.txt",shouldTrans:p.shouldTrans,ls:p.urls,report:p.report,to:p.to}
         await spideOne(tu).catch((a)=>log(a))
-        postJson({t:tu,host:p.to,port:8081,path:"/admin/translate/finish"})
+        postJson({t: {url:p.urls[0]},host:p.to,port:8081,path:"/admin/translate/finish"})
     }else if(p.bySummary){
         for(let i=0;i<p.urls.length;i++){
             let tu={url:p.urls[i],fn:dn+"content.txt",shouldTrans:p.shouldTrans,pattern:p.pattern,report:p.report,to:p.to}
