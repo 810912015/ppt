@@ -1,9 +1,10 @@
 const express = require('express')
-const maker=require('./betterdev.js')
+
 const app = express()
 const port = 7070
 
 app.post('/translate', (req, res) => {
+    const maker=require('./betterdev.js')
     req.on('data',function(data){
         let obj=JSON.parse(data);
         if(!obj||!obj.url){
@@ -12,7 +13,7 @@ app.post('/translate', (req, res) => {
         }
         let p={
             shouldTrans:true,
-            byContent:"c"===obj.type||true,
+            byContent:"c"===obj.type||false,
             bySummary:"s"===obj.type||false,
             report:true,
             to:obj.to||"192.168.16.102",

@@ -92,6 +92,44 @@ const ps={
     "https://lobste.rs":".u-url",
     "https://betterdev.link":"div > a"
 }
+
+function postJson(p) {
+    let http=require('http')
+
+    let data={
+        url:p.t.l,
+        json:JSON.stringify(p.t)
+    }
+
+    let content=JSON.stringify(data)
+    log("before",p,data,content)
+    let ops={
+        hostname:p.host,
+        port:p.port,
+        path:p.path,
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json;charset=UTF-8"
+        }
+    }
+    let req = http.request(ops, function (res) {
+        console.log('STATUS: ' + res.statusCode);
+        console.log('HEADERS: ' + JSON.stringify(res.headers));
+        res.setEncoding('utf8');
+        res.on('data', function (chunk) {
+            console.log('BODY: ' + chunk);
+        });
+    });
+
+    req.on('error', function (e) {
+        console.log('problem with request: ' + e.message);
+    });
+
+    req.write(content);
+
+    req.end();
+}
+
 async function spideOne(ops) {
     let {url,fn,shouldTrans,ls,pattern,report,to}=ops
     log("begin",url,ls)
@@ -160,42 +198,7 @@ async function spideOne(ops) {
     }
 
     function callWebService(t) {
-        let http=require('http')
-
-        let data={
-            url:t.l,
-            json:JSON.stringify(t)
-        }
-
-        let content=JSON.stringify(data)
-        log("before",t,data,content)
-        let ops={
-            hostname:to,
-            port:8081,
-            path:"/admin/translate/done",
-            method:"POST",
-            headers:{
-                "Content-Type":"application/json;charset=UTF-8"
-            }
-        }
-        let req = http.request(ops, function (res) {
-            console.log('STATUS: ' + res.statusCode);
-            console.log('HEADERS: ' + JSON.stringify(res.headers));
-            res.setEncoding('utf8');
-            res.on('data', function (chunk) {
-                console.log('BODY: ' + chunk);
-                //JSON.parse(chunk)
-            });
-        });
-
-        req.on('error', function (e) {
-            console.log('problem with request: ' + e.message);
-        });
-
-// write data to request body
-        req.write(content);
-
-        req.end();
+        postJson({t:t,host:to,port:8081,path:"/admin/translate/done"})
     }
 
     function save(t,i) {
@@ -290,10 +293,14 @@ function getPrm(){
 async function makeArticle(p) {
     let dn=createToday();
     if(p.byContent){
-        await spideOne({url:null,fn:dn+"summary.txt",shouldTrans:p.shouldTrans,ls:p.urls,report:p.report,to:p.to}).catch((a)=>log(a))
+        let tu={url:null,fn:dn+"summary.txt",shouldTrans:p.shouldTrans,ls:p.urls,report:p.report,to:p.to}
+        await spideOne(tu).catch((a)=>log(a))
+        postJson({t:tu,host:p.to,port:8081,path:"/admin/translate/finish"})
     }else if(p.bySummary){
         for(let i=0;i<p.urls.length;i++){
-            await spideOne({url:p.urls[i],fn:dn+"content.txt",shouldTrans:p.shouldTrans,pattern:p.pattern,report:p.report,to:p.to}).catch((a)=>log(a))
+            let tu={url:p.urls[i],fn:dn+"content.txt",shouldTrans:p.shouldTrans,pattern:p.pattern,report:p.report,to:p.to}
+            await spideOne(tu).catch((a)=>log(a))
+            postJson({t:tu,host:p.to,port:8081,path:"/admin/translate/finish"})
         }
     }
 }
