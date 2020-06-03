@@ -97,7 +97,7 @@ function postJson(p) {
     let http=require('http')
 
     let data={
-        url:p.t.l,
+        url:p.t.l||p.t.url,
         json:JSON.stringify(p.t)
     }
 

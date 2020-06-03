@@ -4,7 +4,6 @@
     <list default="true" id="8c3106c3-9a4c-441c-86ef-182e161f5db7" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/betterdev.js" beforeDir="false" afterPath="$PROJECT_DIR$/betterdev.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/maker.js" beforeDir="false" afterPath="$PROJECT_DIR$/maker.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -94,7 +93,9 @@
       <workItem from="1590365979948" duration="1798000" />
       <workItem from="1590455960661" duration="630000" />
       <workItem from="1590537846822" duration="1204000" />
-      <workItem from="1590979578024" duration="5627000" />
+      <workItem from="1590979578024" duration="6504000" />
+      <workItem from="1591055807837" duration="605000" />
+      <workItem from="1591144864495" duration="1510000" />
     </task>
     <servers />
   </component>
