@@ -1,5 +1,6 @@
 const {log,start}=require("./pbp")
 const parser=require("node-html-parser")
+const he=require("he")
 const gtrans =require("./gtrans")
 let fs=require('fs')
 
@@ -173,7 +174,7 @@ async function spideOne(ops) {
             pre:false,
             comment:false
         });
-        return root.structuredText;
+        return he.decode(root.structuredText);
     }
     async function getCText(t) {
         let gt=await gtrans.prepare();
